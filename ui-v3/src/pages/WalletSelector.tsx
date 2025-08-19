@@ -56,7 +56,6 @@ const WalletSelector = () => {
   }, [walletData, stxBalance, balanceLoading])
 
   useEffect(() => {
-    // Combine detected wallets with imported wallets
     const allWallets = [...smartWallets, ...importedWallets];
     setWalletsToShow(allWallets);
   }, [smartWallets, importedWallets]);

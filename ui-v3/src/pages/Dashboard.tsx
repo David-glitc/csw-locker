@@ -18,7 +18,7 @@ import { TransactionDataService } from "@/services/transactionDataService";
 const service = new TransactionDataService();
 
 const Dashboard = () => {
-   const { walletId } = useParams<{walletId:`${string}.${string}`}>()
+  const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
   const { selectedWallet: walletData, isLoading } = useSelectedWallet();
   const { stxBalance, nftBalance, ftBalance, loading, error } = useAccountBalanceService(walletId)
   const { rates: stxRate } = useGetRates("stx")
@@ -94,9 +94,9 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-					{stxBalance ? <p>{formatNumber(Number(stxBalance.actual_balance), 2)} STX</p> : <p>0.00 STX</p>}
-				  </div>
-              <p className="text-xs text-slate-400">STX Balance</p>
+                {stxBalance ? <p>{stxBalance?.balance} STX</p> : <p>0.00 STX</p>}
+              </div>
+              <p className="text-xs text-slate-400">{`${walletId.slice(0, 4)}...${walletId.slice(walletId.length-15, walletId.length)}`}</p>
             </CardContent>
           </Card>
 
@@ -107,8 +107,8 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-400">
-					{stxBalance && stxRate ? <p>${formatNumber(Number(stxBalance.actual_balance) * Number(stxRate.current_price), 2)}</p> : <p>$0.00</p>}
-				  </div>
+                {stxBalance && stxRate ? <p>${formatNumber(Number(stxBalance?.balance) * Number(stxRate?.current_price), 2)}</p> : <p>$0.00</p>}
+              </div>
               <p className="text-xs text-slate-400">Current market value</p>
             </CardContent>
           </Card>
@@ -132,8 +132,8 @@ const Dashboard = () => {
 
         {/* Asset Overview and Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-				<AssetOverview assets={[]} stx={stxBalance} fts={ftBalance} nfts={nftBalance} stxRate={stxRate} btcRate={btcRate} />
-				<RecentActivity walletAddress={walletData.address} smartWalletAddress={walletId} />
+          <AssetOverview assets={[]} stx={stxBalance} fts={ftBalance} nfts={nftBalance} stxRate={stxRate} btcRate={btcRate} />
+          <RecentActivity walletAddress={walletData.address} smartWalletAddress={walletId} />
         </div>
 
         {/* Quick Actions */}

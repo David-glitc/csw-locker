@@ -16,14 +16,12 @@ interface WalletLayoutProps {
 const WalletLayout = ({ children }: WalletLayoutProps) => {
    const { walletId } = useParams();
    const { selectedWallet } = useSelectedWallet();
-   const [selectedNetwork, setSelectedNetwork] = useState<
-      "mainnet" | "testnet"
-   >("mainnet");
+   const [selectedNetwork, setSelectedNetwork] = useState<"mainnet" | "testnet">("mainnet");
    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
    const [networkParams, setNetworkParams] = useSearchParams();
 
-	const { stxBalance, loading, error } = useAccountBalanceService(walletId)
-  const { rates: stxRate, loading: loadingStxRate } = useGetRates("stx")
+   const { stxBalance, loading, error } = useAccountBalanceService(walletId)
+   const { rates: stxRate, loading: loadingStxRate } = useGetRates("stx")
 
    const handleNetworkSwitch = (network: "mainnet" | "testnet") => {
       setSelectedNetwork(network);
@@ -56,8 +54,8 @@ const WalletLayout = ({ children }: WalletLayoutProps) => {
    const currentWallet = {
       name: selectedWallet.name,
       contractId: selectedWallet.contractId,
-      balance: stxBalance ? `${formatNumber(+stxBalance.actual_balance, 2)} STX` : "0.00",
-      usdValue: stxBalance && stxRate ? `$${formatNumber(+stxBalance.actual_balance * +stxRate.current_price, 2)}` : "..."
+      balance: stxBalance ? `${Number(formatNumber(+stxBalance?.balance, stxBalance?.decimal)).toFixed(4) ?? '0.0000'}` : "0.0000",
+      usdValue: stxBalance && stxRate ? `$${formatNumber(+stxBalance?.balance * +stxRate?.current_price, 2)}` : "..."
    };
 
    return (
