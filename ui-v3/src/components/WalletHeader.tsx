@@ -75,7 +75,7 @@ const WalletHeader = ({
                         <div className="flex items-center space-x-2 md:space-x-4">
                            <div className="text-right">
                               <div className="text-xs md:text-sm text-slate-400">
-                                 Balance
+                                 STX Balance
                               </div>
                               <div className="text-sm md:text-lg font-bold text-white">
                                  {currentWallet.balance}

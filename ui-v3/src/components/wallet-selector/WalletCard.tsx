@@ -2,9 +2,11 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wallet, Settings } from "lucide-react";
+import { Wallet, Settings, CopyIcon } from "lucide-react";
 import GreenButton from "../ui/green-button";
 import { SmartWallet } from "@/services/smartWalletContractService";
+import { useState } from "react";
+import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 
 interface WalletCardProps {
   wallet: SmartWallet;
@@ -13,6 +15,14 @@ interface WalletCardProps {
 
 const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
   // Use "demo" as the wallet ID for demo wallets to enable special routing
+  const [copied, setCopied] = useState(false);
+  const { stxBalance, sBtcBalance } = useAccountBalanceService(wallet.contractId)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(wallet.contractId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   const walletId = wallet.contractId;
 
   return (
@@ -47,12 +57,30 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
       <CardContent className="space-y-4">
         <div>
           <div className="text-slate-400 text-sm">Contract Id</div>
-          <div className="text-white font-mono text-sm">{wallet.contractId.slice(0, 5)}...{wallet.contractId.slice(wallet.contractId.length - 15, wallet.contractId.length)}</div>
+          <div className="flex gap-5 items-center">
+            <div className="text-white font-mono text-sm">
+              {wallet.contractId.slice(0, 5)}...{wallet.contractId.slice(wallet.contractId.length - 15, wallet.contractId.length)}
+            </div>
+            <Button
+              size="sm"
+              onClick={handleCopy}
+              className={copied ? 'text-green-500' : 'text-muted-foreground'}
+            >
+              <CopyIcon />
+            </Button>
+          </div>
+
         </div>
 
-        <div>
-          <div className="text-slate-400 text-sm">STX Balance</div>
-          <div className="text-white font-semibold">{wallet.stxHolding}</div>
+        <div className="flex flex-between gap-5">
+          <div>
+            <div className="text-slate-400 text-sm">STX Balance</div>
+            <div className="text-white font-semibold">{stxBalance?.balance ?? '0.000'}</div>
+          </div>
+          <div>
+            <div className="text-slate-400 text-sm">sBTC Balance</div>
+            <div className="text-white font-semibold">{sBtcBalance?.balance ?? '0.0000'}</div>
+          </div>
         </div>
 
         {wallet.extensions.length > 0 &&
