@@ -1,6 +1,5 @@
 import WalletLayout from "@/components/WalletLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ArrowUpRight, TrendingUp, Activity, DollarSign, Settings } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
@@ -10,6 +9,7 @@ import RecentActivity from "@/components/dashboard/RecentActivity";
 import SecondaryButton from "@/components/ui/secondary-button"; // Add this import if not present
 import PrimaryButton from "@/components/ui/primary-button";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
+import { useSmartWalletContractService } from "@/hooks/useSmartWalletContractService";
 import { formatNumber } from "@/utils/numbers";
 import useGetRates from "@/hooks/useGetRates";
 import { useEffect, useState } from "react";
@@ -21,8 +21,12 @@ const Dashboard = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
   const { selectedWallet: walletData, isLoading } = useSelectedWallet();
   const { stxBalance, nftBalance, ftBalance, loading, error } = useAccountBalanceService(walletId)
-  const { rates: stxRate } = useGetRates("stx")
-  const { rates: btcRate } = useGetRates("btc")
+  const { extensions, loading: extensionsLoading } = useSmartWalletContractService(walletId?.split('.')[0])
+  console.log({ walletData })
+
+  // Use the useGetRates hook for STX and sBTC rates
+  const { rates: stxRates, loading: stxLoading, usdPrice: stxUsdPrice, error: stxError } = useGetRates(".stx")
+  const { rates: sbtcRates, loading: sbtcLoading, usdPrice: sbtcUsdPrice, error: sbtcError } = useGetRates("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token")
 
   // Add state for transaction count
   const [txCount, setTxCount] = useState<number | null>(null);
@@ -32,7 +36,8 @@ const Dashboard = () => {
     service.getTransactionCount(walletId).then(setTxCount);
   }, [walletId]);
 
-  if (isLoading || loading) {
+  // Show loading state if any critical data is still loading
+  if (isLoading || loading || stxLoading || sbtcLoading || extensionsLoading) {
     return (
       <WalletLayout>
         <div className="flex items-center justify-center h-64">
@@ -66,6 +71,23 @@ const Dashboard = () => {
     </PrimaryButton>
   );
 
+  // Calculate USD value with proper error handling
+  const calculateUSDValue = () => {
+    if (!stxBalance?.balance || !stxUsdPrice) {
+      return 0.00;
+    }
+    try {
+      return +stxBalance.balance * +stxUsdPrice;
+    } catch (error) {
+      console.error('Error calculating USD value:', error);
+      return 0.00;
+    }
+  };
+
+  const usdValue = calculateUSDValue();
+
+  console.log({ stxRates, sbtcRates, stxUsdPrice, sbtcUsdPrice, usdValue })
+
   return (
     <WalletLayout>
       <div className="space-y-6">
@@ -73,15 +95,6 @@ const Dashboard = () => {
           <div>
             <h1 className="text-2xl font-bold text-white">Dashboard</h1>
             <p className="text-slate-400">Manage your smart wallet assets and activities</p>
-          </div>
-          <div className="flex space-x-2">
-            <SecondaryButton asChild variant={undefined}>
-              <Link to={`/send/${walletId}`}>
-                <ArrowUpRight className="mr-2 h-4 w-4" />
-                Send Assets
-              </Link>
-            </SecondaryButton>
-            {isStackingActive && <StackSTXButton />}
           </div>
         </div>
 
@@ -96,7 +109,7 @@ const Dashboard = () => {
               <div className="text-2xl font-bold text-white">
                 {stxBalance ? <p>{stxBalance?.balance} STX</p> : <p>0.00 STX</p>}
               </div>
-              <p className="text-xs text-slate-400">{`${walletId.slice(0, 4)}...${walletId.slice(walletId.length-15, walletId.length)}`}</p>
+              <p className="text-xs text-slate-400">{`${walletId.slice(0, 4)}...${walletId.slice(walletId.length - 15, walletId.length)}`}</p>
             </CardContent>
           </Card>
 
@@ -107,9 +120,11 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-400">
-                {stxBalance && stxRate ? <p>${formatNumber(Number(stxBalance?.balance) * Number(stxRate?.current_price), 2)}</p> : <p>$0.00</p>}
+                {usdValue > 0 ? <p>${formatNumber(usdValue, 2)}</p> : <p>$0.00</p>}
               </div>
-              <p className="text-xs text-slate-400">Current market value</p>
+              <p className="text-xs text-slate-400">
+                {stxError ? 'Rate unavailable' : 'Current market value'}
+              </p>
             </CardContent>
           </Card>
 
@@ -123,17 +138,6 @@ const Dashboard = () => {
               <p className="text-xs text-slate-400">Total transactions</p>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Active Extensions Section */}
-        {walletData.extensions && walletData.extensions.length > 0 && (
-          <ActiveExtensions extensions={walletData.extensions} />
-        )}
-
-        {/* Asset Overview and Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AssetOverview assets={[]} stx={stxBalance} fts={ftBalance} nfts={nftBalance} stxRate={stxRate} btcRate={btcRate} />
-          <RecentActivity walletAddress={walletData.address} smartWalletAddress={walletId} />
         </div>
 
         {/* Quick Actions */}
@@ -150,7 +154,7 @@ const Dashboard = () => {
             </SecondaryButton>
             <SecondaryButton asChild variant={undefined} className="h-20 flex-col">
               <Link to={`/receive/${walletId}`}>
-                <ArrowUpRight className="h-6 w-6 mb-2 rotate-180" />
+                <ArrowUpRight className="h-6 w-6 mb-2" rotate-180 />
                 Receive
               </Link>
             </SecondaryButton>
@@ -176,6 +180,17 @@ const Dashboard = () => {
             </SecondaryButton>
           </CardContent>
         </Card>
+
+        {/* Asset Overview and Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AssetOverview smartWalletAddress={walletId} walletAddress={walletData.address} />
+          <RecentActivity walletAddress={walletData.address} smartWalletAddress={walletId} />
+        </div>
+
+        {/* Active Extensions Section */}
+        {extensions && extensions.length > 0 && (
+          <ActiveExtensions extensions={extensions} />
+        )}
       </div>
     </WalletLayout>
   );

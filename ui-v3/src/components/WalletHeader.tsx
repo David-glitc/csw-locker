@@ -8,7 +8,7 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Wallet, User, Globe, Settings, ChevronDown, Menu } from "lucide-react";
+import { Wallet, User, Globe, Settings, ChevronDown, Menu, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import SecondaryButton from "./ui/secondary-button";
@@ -102,6 +102,46 @@ const WalletHeader = ({
 
                   {/* Desktop User Menu */}
                   <div className="hidden md:flex items-center space-x-2">
+
+                     {/* Network Switcher */}
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild disabled>
+                           <SecondaryButton size="sm">
+                              <Globe className="mr-2 h-4 w-4" />
+                              <span className="hidden lg:inline">
+                                 {selectedNetwork}
+                              </span>
+                              {/* <ChevronDown className="ml-2 h-4 w-4" /> */}
+                           </SecondaryButton>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-48 bg-slate-800 border-slate-700 text-white">
+                           <DropdownMenuLabel>Select Network</DropdownMenuLabel>
+                           <DropdownMenuSeparator className="bg-slate-700" />
+                           <DropdownMenuItem
+                              className="hover:bg-slate-700 focus:bg-slate-700"
+                              onClick={() => handleNetworkSwitch("mainnet")}
+                           >
+                              <div className="flex items-center justify-between w-full">
+                                 <span>Mainnet</span>
+                                 {selectedNetwork === "mainnet" && (
+                                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                 )}
+                              </div>
+                           </DropdownMenuItem>
+                           <DropdownMenuItem
+                              className="hover:bg-slate-700 focus:bg-slate-700"
+                              onClick={() => handleNetworkSwitch("testnet")}
+                           >
+                              <div className="flex items-center justify-between w-full">
+                                 <span>Testnet</span>
+                                 {selectedNetwork === "testnet" && (
+                                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                 )}
+                              </div>
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+
                      {/* Connected Wallet Profile Menu */}
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -135,47 +175,14 @@ const WalletHeader = ({
                               <Settings className="mr-2 h-4 w-4" />
                               Wallet Settings
                            </DropdownMenuItem>
+                           <DropdownMenuSeparator className="bg-slate-700" />
+                           <DropdownMenuItem className="hover:bg-slate-700 focus:bg-slate-700" onClick={disconnectWallet}>
+                              <LogOut className="mr-2 h-4 w-4" />
+                              Logout
+                           </DropdownMenuItem>
                         </DropdownMenuContent>
                      </DropdownMenu>
 
-                     {/* Network Switcher */}
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                           <SecondaryButton size="sm">
-                              <Globe className="mr-2 h-4 w-4" />
-                              <span className="hidden lg:inline">
-                                 {selectedNetwork}
-                              </span>
-                              <ChevronDown className="ml-2 h-4 w-4" />
-                           </SecondaryButton>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-48 bg-slate-800 border-slate-700 text-white">
-                           <DropdownMenuLabel>Select Network</DropdownMenuLabel>
-                           <DropdownMenuSeparator className="bg-slate-700" />
-                           <DropdownMenuItem
-                              className="hover:bg-slate-700 focus:bg-slate-700"
-                              onClick={() => handleNetworkSwitch("mainnet")}
-                           >
-                              <div className="flex items-center justify-between w-full">
-                                 <span>Mainnet</span>
-                                 {selectedNetwork === "mainnet" && (
-                                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                                 )}
-                              </div>
-                           </DropdownMenuItem>
-                           <DropdownMenuItem
-                              className="hover:bg-slate-700 focus:bg-slate-700"
-                              onClick={() => handleNetworkSwitch("testnet")}
-                           >
-                              <div className="flex items-center justify-between w-full">
-                                 <span>Testnet</span>
-                                 {selectedNetwork === "testnet" && (
-                                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                                 )}
-                              </div>
-                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                     </DropdownMenu>
                   </div>
                </div>
             </div>

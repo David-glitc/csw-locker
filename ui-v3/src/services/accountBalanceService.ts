@@ -1,239 +1,435 @@
-import { NFTBalanceResponse } from "@/components/send/NFTSelectionStep";
-import { TokenBalanceInfo } from "@/components/send/TokenSelectionStep";
 import axios from "axios";
-import { getClientConfig } from "@/utils/chain-config";
+import {
+  AddressBalanceResponse,
+  StxResponseBalance,
+  FtResponseBalance,
+  NftResponseBalance,
+  FungibleType,
+  AccountBalanceType,
+  ftInfoType,
+  nftInfoType,
+  metaDataType,
+  nftAssetType,
+  GetFungibleTokenMeta,
+  GetNoneFungibleTokenMeta,
+  NftMetadataResponse
+} from "./types";
 
-interface StxResponseBalance {
-   balance: string
-   burnchain_lock_height: number
-   burnchain_unlock_height: number
-   estimated_balance: string
-   lock_height: number
-   lock_tx_id: string
-   locked: string
-   pending_balance_inbound: string
-   pending_balance_outbound: string
-   total_fees_sent: string
-   total_miner_rewards_received: string
-   total_received: string
-   total_sent: string
-}
-export interface FtResponseBalance {
-   balance: string
-   total_sent: string
-   total_received: string,
-   asset_identifier: string
-}
-export interface NftResponseBalance {
-   count: string | number
-   total_sent: string
-   total_received: string
-   asset_identifier: string
-
+/**
+ * Configuration interface for API requests
+ * @interface ApiConfig
+ */
+interface ApiConfig {
+  baseUrl: string;                    // Base URL for the API (e.g., https://api.hiro.so)
+  timeout?: number;                   // Request timeout in milliseconds (default: 10000)
+  headers?: Record<string, string>;   // Additional headers for requests
 }
 
-export type AccountResponseBalanceType = {
-   stx: StxResponseBalance,
-   fungible_tokens: Record<string, FtResponseBalance>,
-   non_fungible_tokens: Record<string, NftResponseBalance>
-}
-export type AccountBalanceType = {
-   raw: AccountResponseBalanceType,
-   ft: FtResponseBalance[],
-   nft: NftResponseBalance[],
-   stx: FungibleType,
-   sbtc: FungibleType,
-}
-
-export type FungibleType = {
-   umicro: number | string
-   balance: number | string
-   decimal: number
-   name: string
-   symbol: string
-   icon: string
-   contract: string,
-   asset_identifier: string
-}
-export type NftBalanceType = {
-   count: number,
-   total_sent: string
-   total_received: string
-   asset_identifier: string
-}
-
-export type metaDataType = {
-   sip: number
-   name: string
-   description: string
-   image: string
-   cached_image: string
-   cached_thumbnail_image: string
-   attributes: {
-      trait_type: string
-      display_type: string
-      value: string
-   }[]
-   properties: {
-      collection: string
-      total_supply: string
-   }
-   localization: {
-      uri: string
-      default: string
-      locales: string[]
-   }
-}
-export type ftInfoType = {
-   name: string
-   symbol: string
-   decimals: number
-   total_supply: string
-   token_uri: string
-   description: string
-   image_uri: string
-   image_thumbnail_uri: string
-   image_canonical_uri: string
-   tx_id: string
-   sender_address: string
-   asset_identifier: string
-   metadata: metaDataType
-}
-export type nftAssetType = {
-   asset_identifier: string
-   value: {
-      hex: string
-      repr: string
-   },
-   block_height: number
-   tx_id: string
-}
-export type nftInfoType = {
-   count: number | string,
-   token_uri: string
-   metadata: metaDataType
-   assets: Promise<nftAssetType[]>
-}
-
-type GetFungibleTokenMeta = ftInfoType | null
-type GetNoneFungibleTokenMeta = nftInfoType | null
-
+/**
+ * Service class for fetching and managing account balance data from Stacks blockchain
+ * Handles STX, FT (Fungible Token), and NFT (Non-Fungible Token) balances
+ * Includes metadata fetching for enhanced token information
+ */
 export class AccountBalanceService {
-   private handleGetFtMeta = async (walletAddress: string, asset_identifiers: string): Promise<GetFungibleTokenMeta> => {
-      let response: GetFungibleTokenMeta
-      try {
-         const { api } = getClientConfig(walletAddress)
-         response = (await axios.get(`${api}/metadata/v1/ft/${asset_identifiers}`)).data;
-      } catch (error) { console.log({ error }); }
-      return response;
-   };
-   private handleGetNftMeta = async (walletAddress: string, asset_identifiers: string, id: number): Promise<GetNoneFungibleTokenMeta> => {
-      let response: GetNoneFungibleTokenMeta
-      try {
-         const { api } = getClientConfig(walletAddress)
-         response = (await axios.get(`${api}/metadata/v1/nft/${asset_identifiers}/${id}`)).data?.metadata;
-      } catch (error) {
-         console.log({ error });
-      }
-      return response;
-   };
-   private formatDecimals = (
-      value: number | string,
-      decimals: number,
-      isUmicro: boolean
-   ): string => {
-      if (isUmicro) {
-         return (Number(value) * 10 ** decimals).toFixed(0);
-      } else {
-         return (Number(value) / 10 ** decimals).toFixed(4);
-      }
-   };
+  // Default configuration for API requests
+  private defaultConfig: ApiConfig = {
+    baseUrl: "https://api.hiro.so",   // Default to Hiro API
+    timeout: 10000,                   // 10 second timeout
+    headers: {
+      "Content-Type": "application/json",
+    },
+  };
 
-   constructStxBalance(stxRes: StxResponseBalance): FungibleType {
+  /**
+   * Constructor to initialize the service with custom configuration
+   * @param config - Optional configuration to override defaults
+   */
+  constructor(config?: Partial<ApiConfig>) {
+    if (config) {
+      this.defaultConfig = { ...this.defaultConfig, ...config };
+    }
+  }
+
+  /**
+   * Generic function to fetch balance data from the Stacks API
+   * @param address - The wallet address to fetch balances for
+   * @param config - Optional configuration override
+   * @returns Promise resolving to balance data or null if failed
+   */
+  private async getBalance<T>(address: string, config?: Partial<ApiConfig>): Promise<T | null> {
+    const apiConfig = { ...this.defaultConfig, ...config };
+
+    try {
+      const response = await axios.get(
+        `${apiConfig.baseUrl}/extended/v1/address/${address}/balances`,
+        {
+          timeout: apiConfig.timeout,
+          headers: apiConfig.headers,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch balance data:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetches STX (Stacks) balance for a given address
+   * @param address - The wallet address to fetch STX balance for
+   * @param config - Optional configuration override
+   * @returns Promise resolving to STX balance data or null if failed
+   */
+  async getStxBalance(address: string, config?: Partial<ApiConfig>): Promise<StxResponseBalance | null> {
+    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
+    return balanceData?.stx || null;
+  }
+
+  /**
+   * Fetches all Fungible Token (FT) balances for a given address
+   * @param address - The wallet address to fetch FT balances for
+   * @param config - Optional configuration override
+   * @returns Promise resolving to array of FT balance data
+   */
+  async getFtBalance(address: string, config?: Partial<ApiConfig>): Promise<FtResponseBalance[]> {
+    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
+
+    // Return empty array if no fungible tokens found
+    if (!balanceData?.fungible_tokens) {
+      return [];
+    }
+
+    // Transform the fungible_tokens object into an array with asset_identifier
+    return Object.keys(balanceData.fungible_tokens).map((key) => ({
+      ...balanceData.fungible_tokens[key],
+      asset_identifier: key, // Add the asset identifier for easier access
+    }));
+  }
+
+  /**
+   * Fetches all Non-Fungible Token (NFT) balances for a given address
+   * @param address - The wallet address to fetch NFT balances for
+   * @param config - Optional configuration override
+   * @returns Promise resolving to array of NFT balance data
+   */
+  async getNftBalance(address: string, config?: Partial<ApiConfig>): Promise<NftResponseBalance[]> {
+    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
+
+    // Return empty array if no non-fungible tokens found
+    if (!balanceData?.non_fungible_tokens) {
+      return [];
+    }
+
+    // Transform the non_fungible_tokens object into an array with asset_identifier
+    return Object.keys(balanceData.non_fungible_tokens).map((key) => ({
+      ...balanceData.non_fungible_tokens[key],
+      asset_identifier: key, // Add the asset identifier for easier access
+    }));
+  }
+
+  /**
+ * Get complete account balances (STX, FT, NFT)
+ */
+  async getAccountBalances(address: string, config?: Partial<ApiConfig>): Promise<AccountBalanceType | null> {
+    if (!address) return null;
+
+    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
+
+    if (!balanceData) {
+      return null;
+    }
+
+    const ftBalance = await this.getFtBalance(address, config);
+    const nftBalance = await this.getNftBalance(address, config);
+    const stxBalance = this.constructStxBalance(balanceData.stx);
+
+    // Find sBTC balance if it exists
+    const sbtcToken = ftBalance.find((token) => token.asset_identifier === "SN69P7RZRKK8ERQCCABHT2JWKB2S4DHH9H74231T.sbtc-token::sbtc-token");
+    console.log('sbtcToken', { sbtcToken, ftBalance })
+    const sBtcBalance = sbtcToken ? await this.constructFtBalance(address, sbtcToken, config) : null;
+    
+    return {
+      raw: balanceData,
+      ft: ftBalance,
+      nft: nftBalance,
+      stx: stxBalance,
+      sbtc: sBtcBalance,
+    };
+  }
+
+  /**
+   * Get complete account balances with metadata (STX, FT, NFT)
+   */
+  async getAccountBalancesWithMetadata(address: string, config?: Partial<ApiConfig>): Promise<{
+    balances: AccountBalanceType | null;
+    nftMetadata: Record<string, NftMetadataResponse>;
+    ftMetadata: Record<string, any>;
+  }> {
+    if (!address) {
       return {
-         umicro: stxRes.balance,
-         balance: this.formatDecimals(stxRes.balance, 6, false),
-         decimal: 6,
-         name: "Stacks",
-         symbol: "STX",
-         icon: "/icons/stx.png",
-         contract: '.stacks',
-         asset_identifier: '.stacks::stx'
-      }
-   };
-   async constructFtBalance(address: string, ftRes: FtResponseBalance): Promise<FungibleType> {
-      const tokenMeta = await this.handleGetFtMeta(address, ftRes.asset_identifier.split("::")[0])
-      return {
-         umicro: ftRes.balance,
-         balance: this.formatDecimals(ftRes.balance, tokenMeta.decimals, false),
-         decimal: tokenMeta.decimals,
-         name: tokenMeta.name,
-         symbol: tokenMeta.symbol,
-         icon: tokenMeta.image_thumbnail_uri,
-         contract: tokenMeta.asset_identifier.split('::')[0],
-         asset_identifier: tokenMeta.asset_identifier
-      }
-   }
-   async constructNftBalance(address: string, nftRes: NftResponseBalance): Promise<nftInfoType> {
-      const { api } = getClientConfig(address)
-      const nftMeta = await this.handleGetNftMeta(address, nftRes.asset_identifier.split("::")[0], 1)
-      const assets: Promise<nftAssetType[]> = await (await axios.get(`${api}extended/v1/tokens/nft/holdings?principal=${address}&asset_identifiers=${nftRes.asset_identifier}&offset=0`)).data
-      return {
-         count: nftRes.count,
-         token_uri: nftMeta.token_uri,
-         metadata: nftMeta.metadata,
-         assets
-      }
-   }
-
-   async getAccountBalances(address: string): Promise<AccountBalanceType> {
-      if (!address) return;
-
-      let rawBalance: AccountResponseBalanceType = null;
-      let ftBalance: FtResponseBalance[] = [];
-      let nftBalance: NftResponseBalance[] = [];
-      let stxBalance: FungibleType = null;
-      let sBtcBalance: FungibleType = null;
-
-      try {
-         const { api } = getClientConfig(address);
-         rawBalance = (await axios.get(`${api}/extended/v1/address/${address}/balances`)).data;
-      } catch (e) {
-         console.error("Failed to fetch raw balance", e);
-      }
-
-      if (rawBalance) {
-         try {
-            ftBalance = Object.keys(rawBalance.fungible_tokens || {}).map((key) => ({ ...rawBalance.fungible_tokens[key], asset_identifier: key }));
-         } catch (e) {
-            console.error("Failed to process FT balances", e);
-         }
-         try {
-            nftBalance = Object.keys(rawBalance.non_fungible_tokens || {}).map((key) => ({ ...rawBalance.non_fungible_tokens[key], asset_identifier: key }));
-         } catch (e) {
-            console.error("Failed to process NFT balances", e);
-         }
-         try {
-            stxBalance = this.constructStxBalance(rawBalance.stx);
-         } catch (e) {
-            console.error("Failed to process STX balance", e);
-         }
-         try {
-            const sbtc = ftBalance.find(t => t.asset_identifier === "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token");
-            if (sbtc) {
-               sBtcBalance = await this.constructFtBalance(address, sbtc);
-            }
-         } catch (e) {
-            console.error("Failed to process sBTC balance", e);
-         }
-      }
-
-      return {
-         raw: rawBalance,
-         ft: ftBalance,
-         nft: nftBalance,
-         stx: stxBalance,
-         sbtc: sBtcBalance
+        balances: null,
+        nftMetadata: {},
+        ftMetadata: {}
       };
-   }
+    }
+
+    // Get balances first
+    const balances = await this.getAccountBalances(address, config);
+
+    if (!balances) {
+      return {
+        balances: null,
+        nftMetadata: {},
+        ftMetadata: {}
+      };
+    }
+
+    // Fetch metadata in parallel
+    const [nftMetadata, ftMetadata] = await Promise.all([
+      this.fetchAllNftMetadata(balances.nft, address, config),
+      this.fetchAllFtMetadata(balances.ft, address, config)
+    ]);
+
+    return {
+      balances,
+      nftMetadata,
+      ftMetadata
+    };
+  }
+
+  /**
+   * Format decimal values
+   */
+  private formatDecimals(value: number | string, decimals: number, isUmicro: boolean): string {
+    if (isUmicro) {
+      return (Number(value) * 10 ** decimals).toFixed(0);
+    } else {
+      return (Number(value) / 10 ** decimals).toFixed(4);
+    }
+  }
+
+  /**
+   * Construct STX balance object
+   */
+  private constructStxBalance(stxRes: StxResponseBalance): FungibleType {
+    return {
+      umicro: stxRes.balance,
+      balance: this.formatDecimals(stxRes.balance, 6, false),
+      decimal: 6,
+      name: "Stacks",
+      symbol: "STX",
+      icon: "/icons/stx.png",
+      contract: ".stacks",
+      asset_identifier: ".stacks::stx",
+    };
+  }
+
+  /**
+   * Get FT metadata from Hiro API
+   */
+  private async handleGetFtMeta(
+    address: string,
+    assetIdentifier: string,
+    config?: Partial<ApiConfig>
+  ): Promise<any | null> {
+    const apiConfig = { ...this.defaultConfig, ...config };
+
+    try {
+      const response = await axios.get(
+        `${apiConfig.baseUrl}/metadata/v1/ft/${assetIdentifier?.split("::")[0]}`,
+        {
+          timeout: apiConfig.timeout,
+          headers: apiConfig.headers,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch FT metadata:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch metadata for all NFT collections
+   */
+  private async fetchAllNftMetadata(
+    nfts: NftResponseBalance[],
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<Record<string, NftMetadataResponse>> {
+    if (!nfts || nfts.length === 0) return {};
+
+    const apiConfig = { ...this.defaultConfig, ...config };
+    const metadataPromises = nfts.map(async (nft) => {
+      // Safety check for asset_identifier
+      if (!nft.asset_identifier) {
+        console.warn('NFT token missing asset_identifier:', nft);
+        return { [nft.asset_identifier]: null };
+      }
+
+      const principal = nft.asset_identifier?.split("::")[0];
+      try {
+        const response = await axios.get(
+          `${apiConfig.baseUrl}/metadata/v1/nft/${principal}/1`,
+          {
+            timeout: apiConfig.timeout,
+            headers: apiConfig.headers,
+          }
+        );
+        return { [nft.asset_identifier]: response.data };
+      } catch (error) {
+        console.error(`Failed to fetch NFT metadata for ${nft.asset_identifier}:`, error);
+        return { [nft.asset_identifier]: null };
+      }
+    });
+
+    const results = await Promise.all(metadataPromises);
+    return results.reduce((acc, result) => ({ ...acc, ...result }), {});
+  }
+
+  /**
+   * Fetch metadata for all FT tokens
+   */
+  private async fetchAllFtMetadata(
+    fts: FtResponseBalance[],
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<Record<string, any>> {
+    if (!fts || fts.length === 0) return {};
+
+    const apiConfig = { ...this.defaultConfig, ...config };
+    const metadataPromises = fts.map(async (ft) => {
+      // Safety check for asset_identifier
+      if (!ft.asset_identifier) {
+        console.warn('FT token missing asset_identifier:', ft);
+        return { [ft.asset_identifier]: null };
+      }
+
+      try {
+        const principal = ft.asset_identifier?.split("::")[0];
+        const response = await axios.get(
+          `${apiConfig.baseUrl}/metadata/v1/ft/${principal}`,
+          {
+            timeout: apiConfig.timeout,
+            headers: apiConfig.headers,
+          }
+        );
+        return { [ft.asset_identifier]: response.data };
+      } catch (error) {
+        console.error(`Failed to fetch FT metadata for ${ft.asset_identifier}:`, error);
+        return { [ft.asset_identifier]: null };
+      }
+    });
+
+    const results = await Promise.all(metadataPromises);
+    return results.reduce((acc, result) => ({ ...acc, ...result }), {});
+  }
+
+  /**
+   * Get NFT metadata from Hiro API
+   */
+  private async handleGetNftMeta(
+    principal: string,
+    tokenId: string,
+    config?: Partial<ApiConfig>
+  ): Promise<NftMetadataResponse | null> {
+    const apiConfig = { ...this.defaultConfig, ...config };
+
+    try {
+      const response = await axios.get(
+        `${apiConfig.baseUrl}/metadata/v1/nft/${principal}/${tokenId}`,
+        {
+          timeout: apiConfig.timeout,
+          headers: apiConfig.headers,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch NFT metadata:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Construct FT balance object
+   */
+  private async constructFtBalance(
+    address: string,
+    ftRes: FtResponseBalance,
+    config?: Partial<ApiConfig>
+  ): Promise<FungibleType | null> {
+    console.log('tokenMeta', { address, ftRes, config })
+    const tokenMeta = await this.handleGetFtMeta(address, ftRes.asset_identifier, config);
+    if (!tokenMeta) {
+      // Fallback to basic info if metadata fetch fails
+      return {
+        umicro: ftRes.balance,
+        balance: this.formatDecimals(ftRes.balance, 6, false),
+        decimal: 6,
+        name: ftRes.asset_identifier?.split("::")[1],
+        symbol: ftRes.asset_identifier?.split("::")[1],
+        icon: "",
+        contract: ftRes.asset_identifier?.split("::")[0],
+        asset_identifier: ftRes.asset_identifier,
+      };
+    }
+
+    return {
+      umicro: ftRes.balance,
+      balance: this.formatDecimals(ftRes.balance, tokenMeta.decimals || 6, false),
+      decimal: tokenMeta.decimals || 6,
+      name: tokenMeta.name || ftRes.asset_identifier?.split("::")[1],
+      symbol: tokenMeta.symbol || ftRes.asset_identifier?.split("::")[1],
+      icon: tokenMeta.image_thumbnail_uri || tokenMeta.image_uri || "",
+      contract: tokenMeta.asset_identifier?.split("::")[0],
+      asset_identifier: tokenMeta.asset_identifier,
+    };
+  }
+
+  /**
+   * Construct NFT balance object
+   */
+  private async constructNftBalance(
+    address: string,
+    nftRes: NftResponseBalance,
+    config?: Partial<ApiConfig>
+  ): Promise<nftInfoType | null> {
+    const apiConfig = { ...this.defaultConfig, ...config };
+
+    // Extract principal (contract address) from asset_identifier
+    const principal = nftRes.asset_identifier?.split("::")[0];
+
+    // For now, we'll use token_id "1" as a default, but this should be dynamic
+    // based on the actual NFT holdings
+    const nftMeta = await this.handleGetNftMeta(principal, "1", config);
+    console.log({ nftMeta })
+    if (!nftMeta) {
+      return null;
+    }
+
+    try {
+      const assetsResponse = await axios.get(
+        `${apiConfig.baseUrl}/extended/v1/tokens/nft/holdings?principal=${address}&asset_identifiers=${nftRes.asset_identifier}&offset=0`,
+        {
+          timeout: apiConfig.timeout,
+          headers: apiConfig.headers,
+        }
+      );
+
+      return {
+        count: nftRes.count,
+        token_uri: nftMeta.token_uri,
+        metadata: {
+          name: nftMeta.metadata?.name,
+          description: nftMeta.metadata?.description || "",
+          image: nftMeta.metadata?.cached_image || nftMeta.metadata?.image || "",
+          attributes: nftMeta.metadata?.attributes || [],
+        },
+        assets: Promise.resolve(assetsResponse.data),
+      };
+    } catch (error) {
+      console.error("Failed to fetch NFT assets:", error);
+      return null;
+    }
+  }
 }

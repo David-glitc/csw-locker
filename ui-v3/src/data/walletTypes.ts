@@ -11,6 +11,8 @@ export type ContractType = {
     recomended: boolean
     comingSoon: boolean
     isDeployed: boolean
+    stxHolding?: number;      // STX balance held by the wallet
+    btcHolding?: number;      // BTC balance held by the wallet
 }
 
 export const ContractTypes: ContractType[] = [
