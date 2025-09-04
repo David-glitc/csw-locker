@@ -1,10 +1,9 @@
 
-import { Transaction, Recipient } from './transactionDataService';
+import { Transaction, Recipient } from '../interfaces';
+import { RecipientStorageService } from '../recipientStorageService';
 
 export class MockTransactionDataService {
   async getRecentTransactions(walletAddress: string): Promise<Transaction[]> {
-    console.log('Mock: Fetching recent transactions for:', walletAddress);
-    
     // Rich demo data for transactions
     return [
       {
@@ -14,6 +13,7 @@ export class MockTransactionDataService {
         amount: '500.00',
         asset: 'STX',
         assetType: 'token',
+        action: 'sent',
         timestamp: '1 hour ago',
         status: 'confirmed',
         txHash: '0xdemo123abc...'
@@ -25,6 +25,7 @@ export class MockTransactionDataService {
         amount: '1,250.75',
         asset: 'STX',
         assetType: 'token',
+        action: 'received',
         timestamp: '6 hours ago',
         status: 'confirmed',
         txHash: '0xdemo456def...'
@@ -36,6 +37,7 @@ export class MockTransactionDataService {
         amount: '1',
         asset: 'Demo NFT Collection #42',
         assetType: 'nft',
+        action: 'sent',
         timestamp: '2 days ago',
         status: 'confirmed',
         txHash: '0xdemo789ghi...'
@@ -47,6 +49,7 @@ export class MockTransactionDataService {
         amount: '100.00',
         asset: 'STX',
         assetType: 'token',
+        action: 'sent',
         timestamp: '1 week ago',
         status: 'confirmed',
         txHash: '0xdemo000jkl...'
@@ -55,10 +58,8 @@ export class MockTransactionDataService {
   }
 
   async getRecentRecipients(walletAddress: string): Promise<Recipient[]> {
-    console.log('Mock: Fetching recent recipients for:', walletAddress);
-    
     // Demo recipients data
-    return [
+    const mockRecipients = [
       {
         address: 'SP1ABC...DEMO123',
         lastSent: '1 hour ago',
@@ -80,5 +81,26 @@ export class MockTransactionDataService {
         frequency: 1
       }
     ];
+
+    // Get recipients from localStorage
+    const storageRecipients = RecipientStorageService.getRecentRecipientsFromStorage();
+    
+    // Combine mock and localStorage recipients (localStorage takes precedence)
+    const combinedRecipients = new Map();
+    
+    // Add mock recipients first
+    mockRecipients.forEach(recipient => {
+      combinedRecipients.set(recipient.address, recipient);
+    });
+    
+    // Add/update with localStorage recipients (they have real frequency data)
+    storageRecipients.forEach(recipient => {
+      combinedRecipients.set(recipient.address, recipient);
+    });
+    
+    const allRecipients = Array.from(combinedRecipients.values());
+
+    // Filter out removed recipients using localStorage
+    return RecipientStorageService.filterRemovedRecipients(allRecipients);
   }
 }

@@ -1,12 +1,13 @@
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Wallet, Settings, CopyIcon } from "lucide-react";
 import GreenButton from "../ui/green-button";
-import { SmartWallet } from "@/services/smartWalletContractService";
+import { SmartWallet } from "@/services/interfaces";
 import { useState } from "react";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
+import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 
 interface WalletCardProps {
   wallet: SmartWallet;
@@ -17,13 +18,23 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
   // Use "demo" as the wallet ID for demo wallets to enable special routing
   const [copied, setCopied] = useState(false);
   const { stxBalance, sBtcBalance } = useAccountBalanceService(wallet.contractId)
+  const { updateSelectedWallet } = useSelectedWallet()
+  const navigate = useNavigate()
 
   const handleCopy = () => {
     navigator.clipboard.writeText(wallet.contractId);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  const walletId = wallet.contractId;
+
+  const handleOpenWallet = () => {
+    updateSelectedWallet({
+      ...wallet,
+    });
+    navigate(`/dashboard/${wallet.contractId}`);
+  };
+
+  console.log('wallet', { wallet, isEx: !wallet.ext })
 
   return (
     <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-600/50 transition-colors">
@@ -104,16 +115,12 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
           <div className="text-white font-semibold">{wallet.createdAt}</div>
         </div>
 
-        {
-          !wallet.ext &&
-          <div className="pt-4">
-            <GreenButton asChild className="w-full">
-              <Link to={`/dashboard/${walletId}`}>
-                Open Wallet
-              </Link>
-            </GreenButton>
-          </div>
-        }
+        {!wallet.ext && (<div className="pt-4">
+          <GreenButton className="w-full" onClick={handleOpenWallet}>
+            Open Wallet
+          </GreenButton>
+        </div>
+        )}
 
       </CardContent >
     </Card >

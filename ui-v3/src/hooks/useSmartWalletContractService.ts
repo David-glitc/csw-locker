@@ -9,8 +9,7 @@ import type { ContractType } from '@/data/walletTypes';
  */
 export const useSmartWalletContractService = (walletAddress?: string) => {
   // State management
-  const [smartWallets, setSmartWallets] = useState<any[]>([]);
-  const [extensions, setExtensions] = useState<ContractType[]>([]);
+  const [deployedContracts, setDeployedContracts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,8 +19,7 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
    */
   const fetchWalletData = useCallback(async (address: string) => {
     if (!address) {
-      setSmartWallets([]);
-      setExtensions([]);
+      setDeployedContracts([]);
       setError(null);
       return;
     }
@@ -33,63 +31,38 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
       const smartWalletService = new SmartWalletContractService();
       const balanceService = new AccountBalanceService();
 
-      // Fetch smart wallets and extension contracts in parallel
-      const [allWallets, extensionContracts] = await Promise.all([
-        smartWalletService.getSmartWallets(address),
-        smartWalletService.getSmartWalletExtensionContracts(address)
-      ]);
+      // Fetch smart wallets only
+      const allWallets = await smartWalletService.getSmartWallets(address);
 
-      // Filter out extension wallets from smart wallets (keep only main wallets)
-      const smartWalletsOnly = allWallets.filter(wallet => !wallet.ext);
+      // Use smart wallets as the contracts array
+      const allContracts = allWallets;
 
-      // Update smart wallet objects with actual balances
-      const updatedSmartWallets = await Promise.all(
-        smartWalletsOnly.map(async (wallet) => {
+      // Update all contract objects with actual balances
+      const updatedContracts = await Promise.all(
+        allContracts.map(async (contract) => {
           try {
-            // Fetch balance for this specific wallet address
-            const balances = await balanceService.getAccountBalances(wallet.contractId);
+            // Use contractId for smart wallets, or construct address for extensions
+            const contractAddress = (contract as any).contractId || `${address}.${contract.name}`;
 
-            // Update the wallet object with actual balances
-            return {
-              ...wallet,
-              stxHolding: balances?.stx?.balance ? Number(balances.stx.balance) : 0,
-              btcHolding: balances?.sbtc?.balance ? Number(balances.sbtc.balance) : 0,
-            };
-          } catch (error) {
-            console.error(`Failed to fetch balance for wallet ${wallet.contractId}:`, error);
-            // Return wallet with original values if balance fetch fails
-            return wallet;
-          }
-        })
-      );
-
-      // Update extension contracts with actual balances
-      const updatedExtensions = await Promise.all(
-        extensionContracts.map(async (extension) => {
-          try {
-            // Construct the full contract address for the extension
-            const contractAddress = `${address}.${extension.name}`;
-            // Fetch balance for this specific extension contract
+            // Fetch balance for this specific contract address
             const balances = await balanceService.getAccountBalances(contractAddress);
-            console.log({ contractAddress, extension, balances });
 
-            // Update the extension object with actual balances
+            // Update the contract object with actual balances
             return {
-              ...extension,
+              ...contract,
               stxHolding: balances?.stx?.balance ? Number(balances.stx.balance) : 0,
               btcHolding: balances?.sbtc?.balance ? Number(balances.sbtc.balance) : 0,
             };
           } catch (error) {
-            console.error(`Failed to fetch balance for extension ${extension.name}:`, error);
-            // Return extension with original values if balance fetch fails
-            return extension;
+            console.error(`Failed to fetch balance for contract ${(contract as any).contractId || contract.name}:`, error);
+            // Return contract with original values if balance fetch fails
+            return contract;
           }
         })
       );
 
-      setSmartWallets(updatedSmartWallets);
-      setExtensions(updatedExtensions);
-      console.log(`Successfully fetched ${updatedSmartWallets.length} smart wallets with updated balances and ${extensionContracts.length} extension contracts`);
+      setDeployedContracts(updatedContracts);
+      console.log(`Successfully fetched ${updatedContracts.length} smart wallets with updated balances`);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch wallet data';
@@ -97,8 +70,7 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
       console.error('Error fetching wallet data:', err);
 
       // Reset data on error
-      setSmartWallets([]);
-      setExtensions([]);
+      setDeployedContracts([]);
     } finally {
       setLoading(false);
     }
@@ -114,11 +86,24 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
   }, [walletAddress, fetchWalletData]);
 
   /**
+   * Validates a smart contract
+   */
+  const validateSmartContract = useCallback(async (contractAddress: string): Promise<any | null> => {
+    try {
+      const smartWalletService = new SmartWalletContractService();
+      const result = await smartWalletService.validateSmartContract(contractAddress);
+      return result;
+    } catch (error) {
+      console.error('Contract validation failed:', error);
+      return null;
+    }
+  }, []);
+
+  /**
    * Clears all wallet data
    */
   const clearData = useCallback(() => {
-    setSmartWallets([]);
-    setExtensions([]);
+    setDeployedContracts([]);
     setError(null);
     setLoading(false);
   }, []);
@@ -135,8 +120,7 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
 
   return {
     // Data
-    smartWallets,
-    extensions,
+    deployedContracts,
 
     // State
     loading,
@@ -146,12 +130,17 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
     refetch,
     clearData,
     fetchWalletData,
+    validateSmartContract,
 
     // Computed properties
-    hasSmartWallets: smartWallets.length > 0,
-    hasExtensions: extensions.length > 0,
-    smartWalletCount: smartWallets.length,
-    extensionCount: extensions.length,
+    hasDeployedContracts: deployedContracts.length > 0,
+    deployedContractCount: deployedContracts.length,
+    smartWallets: deployedContracts.filter(contract => !contract.ext),
+    extensions: deployedContracts.filter(contract => contract.ext),
+    hasSmartWallets: deployedContracts.some(contract => !contract.ext),
+    hasExtensions: deployedContracts.some(contract => contract.ext),
+    smartWalletCount: deployedContracts.filter(contract => !contract.ext).length,
+    extensionCount: deployedContracts.filter(contract => contract.ext).length,
   };
 };
 

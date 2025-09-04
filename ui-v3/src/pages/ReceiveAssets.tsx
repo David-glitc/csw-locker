@@ -2,6 +2,13 @@ import WalletLayout from "@/components/WalletLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowDown, Wallet, Download } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useParams } from "react-router-dom";
@@ -14,26 +21,32 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { Copy, Check } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useBlockchainService } from "@/hooks/useBlockchainService";
+import { useState, useEffect, useMemo } from "react";
 import { getClientConfig } from "@/utils/chain-config";
-import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import PrimaryButton from "@/components/ui/primary-button";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
+<<<<<<< HEAD
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import { toMicroAmount, fromMicroAmount } from "@/lib/tokenAmountUtils";
+=======
+import { useTxServices } from "@/hooks/useTxServices";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
 
 const ReceiveAssets = () => {
-  const { selectedWallet } = useSelectedWallet();
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
-  const { depositSTX } = useBlockchainService();
-  const { toast } = useToast();
+  const { walletData } = useWalletConnection()
+  const { loading: balanceLoading, error: balanceError, ftBalance, ftMetadata, nftBalance, nftMetadata } = useAccountBalanceService(walletData?.addresses.stx[0]?.address)
+
+  const { deposit } = useTxServices();
+
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
-  const [depositSuccess, setDepositSuccess] = useState<{ txid: string, network: string } | null>(null);
+  const [depositSuccess, setDepositSuccess] = useState<{ txid: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [stxUsd, setStxUsd] = useState<number | null>(null);
+<<<<<<< HEAD
   const userWalletAddress = selectedWallet?.address || "";
   const {
     stxBalance,
@@ -47,6 +60,11 @@ const ReceiveAssets = () => {
   useEffect(() => {
     fetchStxUsdPrice().then(setStxUsd);
   }, []);
+=======
+  const [showMaxWarning, setShowMaxWarning] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<string>('');
+  const { toast } = useToast();
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
 
   const copyToClipboard = () => {
     if (walletId) {
@@ -56,10 +74,34 @@ const ReceiveAssets = () => {
     }
   };
 
+  // Create processed FT tokens with metadata
+  const processedFtTokens = ftBalance.map(ft => {
+    const metadata = ftMetadata[ft.asset_identifier];
+    return {
+      ...ft,
+      name: metadata?.name || ft.asset_identifier.split("::")[1] || "Unknown Token",
+      symbol: metadata?.symbol || ft.asset_identifier.split("::")[1] || "UNK",
+      contract: ft.asset_identifier.split("::")[0],
+      icon: metadata?.image_thumbnail_uri || metadata?.image_uri || "",
+      decimal: metadata?.decimals || 6
+    };
+  });
+
+  // Find the selected FT token
+  const selectedFt = processedFtTokens.find(ft => ft.symbol === selectedAsset);
+
+  const resetForm = () => {
+    setSelectedAsset('');
+    setDepositAmount('');
+    setShowMaxWarning(false);
+    setDepositSuccess(null);
+  };
+
   const handleDeposit = async () => {
     if (!walletId || !depositAmount) return;
     setIsDepositing(true);
     try {
+<<<<<<< HEAD
       let result;
       if (selectedAsset === "STX") {
         const microStxAmount = toMicroAmount(depositAmount, 6);
@@ -77,12 +119,25 @@ const ReceiveAssets = () => {
           sender: selectedWallet?.address,
         });
       }
+=======
+      const result = await deposit({
+        from: walletData?.addresses.stx[0]?.address,
+        to: walletId,
+        amount: depositAmount,
+        asset: selectedFt?.symbol || "",
+        assetType: "ft",
+        decimal: selectedFt?.decimal || 6,
+        contractAddress: selectedFt?.contract || ""
+      });
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
       setDepositSuccess(result);
+
       toast({
         title: "Deposit Successful",
         description: `Transaction ID: ${result.txid}`,
         variant: "default",
       });
+
     } catch (e) {
       toast({
         title: "Deposit Failed",
@@ -94,6 +149,7 @@ const ReceiveAssets = () => {
     }
   };
 
+<<<<<<< HEAD
   // Helper to get available balance for selected asset
   const getAvailableBalance = () => {
     if (selectedAsset === "STX") {
@@ -103,11 +159,14 @@ const ReceiveAssets = () => {
     return ft ? Number(fromMicroAmount(ft.balance, ft.decimals || 6)) : 0;
   };
   const available = getAvailableBalance();
+=======
+  const available = useMemo(() => +selectedFt?.balance || 0, [selectedFt]);
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
 
   // Handler for Max button
   const handleMax = () => {
     if (available > 0) {
-      setDepositAmount(available.toFixed(6));
+      setDepositAmount(available.toString());
       setShowMaxWarning(true);
     }
   };
@@ -120,14 +179,15 @@ const ReceiveAssets = () => {
       return;
     }
     if (Number(val) > available) {
-      setDepositAmount(available.toFixed(6));
+      setDepositAmount(available.toString());
     } else {
       setDepositAmount(val);
     }
     setShowMaxWarning(false);
   };
 
-  console.log("ftBalance:", ftBalance);
+
+  console.log("ftBalance:", ftBalance, "ftMetadata:", ftMetadata);
   return (
     <WalletLayout>
       <div className="space-y-6">
@@ -257,7 +317,10 @@ const ReceiveAssets = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={showDepositModal} onOpenChange={setShowDepositModal}>
+        <Dialog open={showDepositModal} onOpenChange={(open) => {
+          setShowDepositModal(open);
+          if (!open) resetForm();
+        }}>
           <DialogContent className="bg-slate-800/90 border text-white border-slate-700 shadow-xl">
             <DialogHeader>
               <DialogTitle>Deposit to Smart Wallet</DialogTitle>
@@ -280,6 +343,7 @@ const ReceiveAssets = () => {
                 >
                   View on Explorer
                 </a>
+<<<<<<< HEAD
                 <Button
                   onClick={() => {
                     setShowDepositModal(false);
@@ -289,21 +353,30 @@ const ReceiveAssets = () => {
                 >
                   Close
                 </Button>
+=======
+                <Button onClick={() => { setShowDepositModal(false); resetForm(); }}>Close</Button>
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
               </div>
             ) : (
               <>
                 <div className="flex flex-col gap-4">
                   <label className="text-slate-300 text-sm">Asset</label>
-                  <select
+                  <Select
                     value={selectedAsset}
+<<<<<<< HEAD
                     onChange={(e) => {
                       setSelectedAsset(e.target.value);
                       setDepositAmount("");
                       setShowMaxWarning(false);
+=======
+                    onValueChange={(value) => {
+                      setSelectedAsset(value);
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
                     }}
-                    className="bg-slate-700/50 border-slate-600 text-white rounded p-2"
-                    disabled={isDepositing || balanceLoading}
+                    required
+                    disabled={balanceLoading}
                   >
+<<<<<<< HEAD
                     <option value="STX">
                       STX (Available:{" "}
                       {stxBalance?.balance
@@ -322,6 +395,38 @@ const ReceiveAssets = () => {
                         </option>
                       ))}
                   </select>
+=======
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600 hover:border-slate-500">
+                      <SelectValue placeholder={balanceLoading ? "Loading Tokens..." : "Select Token"} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-700 border-slate-600">
+                      {processedFtTokens.map((ft) => (
+                        <SelectItem
+                          value={ft.symbol}
+                          key={ft.symbol}
+                          className="text-white hover:bg-slate-600 focus:bg-slate-600"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={ft.symbol === 'stx' ? '/stx.png' : ft.icon}
+                              alt={ft.name}
+                              className="w-6 h-6 rounded-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium">{ft.name} {`(${ft.symbol})`}</div>
+                              <div className="text-sm text-slate-400">
+                                {ft.balance || "0"} available
+                              </div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
                   <label className="text-slate-300 text-sm flex items-center justify-between">
                     Amount
                     <Button
@@ -387,16 +492,29 @@ const ReceiveAssets = () => {
                       Error loading balance.
                     </div>
                   )}
+<<<<<<< HEAD
                   <div className="text-xs text-slate-400 mt-1">
                     Available:{" "}
                     {balanceLoading
                       ? "Loading..."
                       : `${available.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selectedAsset}`}
                   </div>
+=======
+                  <div className="text-xs text-slate-400 mt-1">Available: {balanceLoading ? "Loading..." : selectedAsset ? `${available.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selectedAsset}` : "Select a token"}</div>
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex gap-2">
+                  <Button
+                    onClick={resetForm}
+                    variant="outline"
+                    className="flex-1 bg-slate-600 hover:bg-slate-700 border-slate-500 text-white"
+                    disabled={isDepositing}
+                  >
+                    Reset
+                  </Button>
                   <Button
                     onClick={handleDeposit}
+<<<<<<< HEAD
                     disabled={
                       !depositAmount ||
                       isDepositing ||
@@ -405,6 +523,10 @@ const ReceiveAssets = () => {
                       balanceLoading
                     }
                     className="bg-green-600 hover:bg-green-700 w-full"
+=======
+                    disabled={!selectedAsset || !depositAmount || isDepositing || Number(depositAmount) > available || Number(depositAmount) <= 0 || balanceLoading}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+>>>>>>> 6632ce3 (Review 2025-07-04 #77)
                   >
                     {isDepositing
                       ? `Depositing...`

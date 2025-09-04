@@ -1,10 +1,8 @@
 
-import { SmartWallet, WalletActivity } from './smartWalletContractService';
+import { SmartWallet, WalletActivity } from '../smartWalletContractService';
 
 export class MockSmartWalletContractService {
   async getSmartWallets(walletAddress: string): Promise<SmartWallet[]> {
-    console.log('Mock: Fetching smart wallets for:', walletAddress);
-    
     // Demo smart wallet data
     return [
       {
@@ -29,8 +27,6 @@ export class MockSmartWalletContractService {
   }
 
   async getWalletActivity(walletAddress: string): Promise<WalletActivity[]> {
-    console.log('Mock: Fetching wallet activity for:', walletAddress);
-    
     // Demo activity data with higher amounts
     return [
       {

@@ -1,10 +1,10 @@
 
 type WizardStep = 'assetType' | 'assetDetails' | 'recipient' | 'summary';
 
-export const getStepTitle = (step: WizardStep, assetType: 'token' | 'nft'): string => {
+export const getStepTitle = (step: WizardStep, assetType: 'ft' | 'nft'): string => {
   switch (step) {
     case 'assetType': return 'Choose Asset Type';
-    case 'assetDetails': return `${assetType === 'token' ? 'Token' : 'NFT'} Details`;
+    case 'assetDetails': return `${assetType === 'ft' ? 'Token' : 'NFT'} Details`;
     case 'recipient': return 'Select Recipient';
     case 'summary': return 'Review & Send';
   }

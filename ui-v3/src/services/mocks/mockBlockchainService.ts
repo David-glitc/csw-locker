@@ -11,8 +11,6 @@ export interface TransactionParams {
 
 export class MockBlockchainService {
   async sendTransaction(params: TransactionParams): Promise<{ txHash: string; status: string }> {
-    console.log('Mock: Sending transaction with params:', params);
-    
     // Simulate blockchain interaction with demo data
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -26,8 +24,6 @@ export class MockBlockchainService {
   }
 
   async getTransactionStatus(txHash: string): Promise<string> {
-    console.log('Mock: Checking transaction status for:', txHash);
-    
     // Always return confirmed for demo
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -38,4 +34,4 @@ export class MockBlockchainService {
 }
 
 // Re-export types for backward compatibility
-export type { Transaction, Recipient } from './transactionDataService';
+export type { Transaction, Recipient } from '../transactionDataService';

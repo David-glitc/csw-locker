@@ -23,7 +23,9 @@ const SendAssets = () => {
       setAsset,
       setTokenId,
       setContractAddress,
+      setDecimal,
       handleAssetTypeChange,
+      handleRemoveRecipient,
       handleSendTransaction,
    } = useSendAssetsWizard();
 
@@ -70,6 +72,8 @@ const SendAssets = () => {
                      onTokenIdChange={setTokenId}
                      onContractAddressChange={setContractAddress}
                      onRecipientChange={setRecipient}
+                     onDecimalChange={setDecimal}
+                     onRemoveRecipient={handleRemoveRecipient}
                      onStepChange={setCurrentStep}
                      onSendTransaction={handleSendTransaction}
                   />

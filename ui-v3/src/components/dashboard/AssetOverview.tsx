@@ -11,11 +11,12 @@ import SecondaryButton from "../ui/secondary-button";
 import { Link } from "react-router-dom";
 
 const AssetOverview = ({ smartWalletAddress, walletAddress }: { smartWalletAddress: string, walletAddress: string }) => {
+	console.log({ smartWalletAddress, walletAddress })
 	// Use the hooks directly in the component
 	const { stxBalance, sBtcBalance, nftBalance, ftBalance, nftMetadata, ftMetadata } = useAccountBalanceService(smartWalletAddress);
 	const { rates: stxRates } = useGetRates(".stx");
 	const { rates: sbtcRates } = useGetRates("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token");
-	console.log({ sbtcRates })
+	console.log({ stxBalance, sBtcBalance, nftBalance, ftBalance, nftMetadata, ftMetadata })
 	return (
 		<Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -36,7 +37,7 @@ const AssetOverview = ({ smartWalletAddress, walletAddress }: { smartWalletAddre
 						<div className="flex items-center space-x-3">
 							<div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
 								{stxRates?.image ? (
-									<img src={stxRates?.image} alt="sBtc" loading="lazy" className="h-full w-full rounded-full" />
+									<img src="/stx.png" alt="sBtc" loading="lazy" className="h-full w-full rounded-full" />
 								) : (
 									<Coins className="h-4 w-4 text-purple-400" />
 								)}
@@ -63,7 +64,7 @@ const AssetOverview = ({ smartWalletAddress, walletAddress }: { smartWalletAddre
 						<div className="flex items-center space-x-3">
 							<div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
 								{sbtcRates?.image ? (
-									<img src={sbtcRates?.image} alt="sBTC" loading="eager" className="h-full w-full rounded-full" />
+									<img src="/sbtc.png" alt="sBTC" loading="eager" className="h-full w-full rounded-full" />
 								) : (
 									<Coins className="h-4 w-4 text-purple-400" />
 								)}

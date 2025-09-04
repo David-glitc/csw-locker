@@ -9,32 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ContractType, getVerifiedContracts } from "@/data/walletTypes";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
-import { Wallet } from "lucide-react";
+import useSmartWalletContractService from "@/hooks/useSmartWalletContractService";
+import { CheckCircle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 const GenericActions = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
-  const [walletExtensions, setWalletExtensions] = useState<ContractType[]>([])
+  const { extensions } = useSmartWalletContractService(walletId?.split('.')[0])
   const [extensionIndex, setExtensionIndex] = useState<number>(0)
-  const [genericValues, setGenericValues] = useState<Record<string, string>>()
-
-  const handleElementsValueChanges = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setGenericValues(prev => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  useEffect(() => {
-    async function init() {
-      const verifiedContracts = await getVerifiedContracts(walletId)
-      const extensions = verifiedContracts.filter((c) => c.ext && c.isDeployed)
-      setWalletExtensions(extensions)
-    }
-    init()
-  }, [])
 
   return (
     <WalletLayout>
@@ -53,11 +36,11 @@ const GenericActions = () => {
           <CardHeader>
             <CardTitle className="text-white flex items-center">
               <Wallet className="mr-2 h-5 w-5 text-purple-400" />
-              {walletExtensions[extensionIndex]?.label ?? 'NA'}
+              {extensions[extensionIndex]?.label ?? 'NA'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <ExtensionSelector extensionInfo={walletExtensions?.[extensionIndex]} />
+            <ExtensionSelector extensionInfo={extensions?.[extensionIndex]} />
           </CardContent>
         </Card>
 
@@ -69,11 +52,20 @@ const GenericActions = () => {
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
 
-              {walletExtensions.map((ext, i) => (
-                <SecondaryButton key={i} onClick={() => setExtensionIndex(i)} className="h-auto p-4 text-left">
-                  <div>
-                    <div className="text-white font-medium">{ext.label}</div>
-                    <div className="text-slate-400 text-sm">{ext.name}</div>
+              {extensions.map((ext, i) => (
+                <SecondaryButton key={i} onClick={() => setExtensionIndex(i)} className="h-auto text-left flex-col">
+                  <div className="flex items-center gap-2 justify-center">
+                    <span className="text-lg">{ext.icon}</span>
+                    <span className="text-sm text-slate-200">{ext.name}</span>
+                  </div>
+
+                  <p className="text-slate-300 text-sm mb-3 break-words whitespace-normal">
+                    {ext.description || 'Extension contract for enhanced functionality'}
+                  </p>
+
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-sm text-green-400">{ext.stxHolding} STX</span>
+                    <span className="text-sm text-green-400">{ext.btcHolding} sBTC</span>
                   </div>
                 </SecondaryButton>
               ))}

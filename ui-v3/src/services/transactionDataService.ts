@@ -1,36 +1,8 @@
 import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
 import { getClientConfig } from "../utils/chain-config";
-
-export type TxAssetInfo = {
-  amount: string;
-  name: string;
-  asset: string;
-  symbol: string;
-};
-
-export type TxInfo = {
-  action: string;
-  sender: string;
-  stamp: string;
-  time: string;
-  assets: TxAssetInfo[];
-  tx: string;
-  tx_status: string;
-  tx_type?: string;
-};
-export interface Transaction {
-  id: string;
-  action: "sent" | "receive" | string;
-  from: string;
-  to: string;
-  amount: string;
-  asset: string;
-  assetType: "token" | "nft";
-  timestamp: string;
-  status: "pending" | "confirmed" | "failed";
-  txHash: string;
-}
+import { TxAssetInfo, TxInfo, Transaction, Recipient } from './interfaces';
+import { RecipientStorageService } from './recipientStorageService';
 
 interface StacksTransactionEvent {
   events: Record<string, unknown>;
@@ -73,11 +45,7 @@ interface PostConditionAsset {
   symbol: string;
 }
 
-export interface Recipient {
-  address: string;
-  lastSent: string;
-  frequency: number;
-}
+
 
 interface TransactionCache {
   [address: string]: {
@@ -239,11 +207,32 @@ export class TransactionDataService {
           }
         });
 
-      return Array.from(recipientMap.entries()).map(([address, data]) => ({
+      const apiRecipients = Array.from(recipientMap.entries()).map(([address, data]) => ({
         address,
         lastSent: data.lastSent,
         frequency: data.frequency,
       }));
+
+      // Get recipients from localStorage
+      const storageRecipients = RecipientStorageService.getRecentRecipientsFromStorage();
+      
+      // Combine and deduplicate recipients (localStorage takes precedence for frequency)
+      const combinedRecipients = new Map();
+      
+      // Add API recipients first
+      apiRecipients.forEach(recipient => {
+        combinedRecipients.set(recipient.address, recipient);
+      });
+      
+      // Add/update with localStorage recipients (they have more accurate frequency data)
+      storageRecipients.forEach(recipient => {
+        combinedRecipients.set(recipient.address, recipient);
+      });
+      
+      const allRecipients = Array.from(combinedRecipients.values());
+      
+      // Filter out removed recipients using localStorage
+      return RecipientStorageService.filterRemovedRecipients(allRecipients);
     } catch (error) {
       console.error("Error fetching recipients:", error);
       return [];
@@ -320,12 +309,6 @@ export class TransactionDataService {
           // Special handling for contract_deploy
           if (tx.tx_type === "contract_deploy") {
             if (normalizedStatus !== "confirmed") {
-              console.log(
-                "Contract deploy not successful:",
-                tx.tx_id,
-                "status:",
-                normalizedStatus
-              );
               return {
                 action: tx?.contract_call?.function_name ?? tx.tx_type,
                 sender: txSender,
@@ -394,7 +377,7 @@ export class TransactionDataService {
         }
       }
     } catch (e) {
-      console.log({ e });
+      // Handle error silently
     }
   };
 
