@@ -1,28 +1,21 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FtResponseBalance, FungibleType, NftResponseBalance } from "@/services/accountBalanceService";
-import { Coins, Icon, Image, TrendingUp } from "lucide-react";
-import { NFTBalanceResponse } from "../send/NFTSelectionStep";
-import { TokenBalanceInfo } from "../send/TokenSelectionStep";
+import { FtResponseBalance, FungibleType, NftResponseBalance, NftMetadataResponse } from "@/services/types";
+import { ArrowUpRight, Coins, Icon, Image, SendIcon, TrendingUp, View } from "lucide-react";
 import { formatNumber } from "@/utils/numbers";
-import { TokenMarketData } from "@/hooks/useGetRates";
+import { CharismaTokenData } from "@/services/types";
+import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
+import useGetRates from "@/hooks/useGetRates";
+import { Button } from "../ui/button";
+import SecondaryButton from "../ui/secondary-button";
+import { Link } from "react-router-dom";
 
-interface Asset {
-	name: string;
-	symbol: string;
-	balance: string;
-	usdValue: string;
-	type: 'token' | 'nft';
-}
-
-const AssetOverview = ({ assets = [], stx, nfts, fts, stxRate, btcRate }: { assets: Asset[], stx: FungibleType, nfts: NftResponseBalance[], fts: FtResponseBalance[], stxRate: { [key: string]: TokenMarketData } | TokenMarketData, btcRate: { [key: string]: TokenMarketData } | TokenMarketData }) => {
-
-	const getAssetIcon = (type: string) => {
-		return type === 'nft' ? Image : Coins;
-	};
-
-	const NftIcon = getAssetIcon("nft")
-
+const AssetOverview = ({ smartWalletAddress, walletAddress }: { smartWalletAddress: string, walletAddress: string }) => {
+	// Use the hooks directly in the component
+	const { stxBalance, sBtcBalance, nftBalance, ftBalance, nftMetadata, ftMetadata } = useAccountBalanceService(smartWalletAddress);
+	const { rates: stxRates } = useGetRates(".stx");
+	const { rates: sbtcRates } = useGetRates("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token");
+	console.log({ sbtcRates })
 	return (
 		<Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -39,45 +32,58 @@ const AssetOverview = ({ assets = [], stx, nfts, fts, stxRate, btcRate }: { asse
 			</CardHeader>
 			<CardContent className="flex flex-col gap-3">
 				<div className="space-y-3">
-					<div
-						className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
-					>
+					<div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors">
 						<div className="flex items-center space-x-3">
 							<div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
-								<NftIcon className="h-4 w-4 text-purple-400" />
+								{stxRates?.image ? (
+									<img src={stxRates?.image} alt="sBtc" loading="lazy" className="h-full w-full rounded-full" />
+								) : (
+									<Coins className="h-4 w-4 text-purple-400" />
+								)}
 							</div>
 							<div>
-								<div className="text-white font-medium">STX</div>
-								<div className="text-slate-400 text-sm">{Number(formatNumber(Number(stx?.balance), stx?.decimal)).toFixed(4)} STX</div>
-
+								<div className="text-white font-medium">{stxBalance?.symbol || "STX"}</div>
+								<div className="text-slate-400 text-sm">
+									{!isNaN(Number(stxBalance?.balance)) && !isNaN(Number(stxBalance?.decimal))
+										? Number(formatNumber(Number(stxBalance?.balance), stxBalance?.decimal)).toFixed(4)
+										: "0.0000"} {stxBalance?.symbol || stxRates?.symbol || "STX"}
+								</div>
 							</div>
 						</div>
 						<div className="text-right">
 							<div className="text-white text-sm font-medium">
-								{stx && stxRate ? <p>${formatNumber(Number(stx?.balance) * Number(stxRate?.current_price), 2)}</p> : <p>$0.00</p>}
+								{stxBalance && stxRates ? <p>${formatNumber(Number(stxBalance?.balance) * Number(stxRates?.usdPrice), 2)}</p> : <p>$0.00</p>}
 							</div>
 						</div>
 					</div>
 				</div>
 
-				{fts.map((ft, i) => <div className="space-y-3" key={i}>
-					<div
-						className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
-					>
+				<div className="space-y-3">
+					<div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors">
 						<div className="flex items-center space-x-3">
 							<div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
-								<NftIcon className="h-4 w-4 text-purple-400" />
+								{sbtcRates?.image ? (
+									<img src={sbtcRates?.image} alt="sBTC" loading="eager" className="h-full w-full rounded-full" />
+								) : (
+									<Coins className="h-4 w-4 text-purple-400" />
+								)}
 							</div>
 							<div>
-								<div className="text-white font-medium">{ft.symbol}</div>
-								<div className="text-slate-400 text-sm">{formatNumber(Number(ft?.balance), ft?.decimal ?? 0)} {ft?.symbol}</div>
+								<div className="text-white font-medium">{sBtcBalance?.symbol || sbtcRates?.symbol || "sBTC"}</div>
+								<div className="text-slate-400 text-sm">
+									{!isNaN(Number(sBtcBalance?.balance)) && !isNaN(Number(sBtcBalance?.decimal))
+										? Number(formatNumber(Number(sBtcBalance?.balance), sBtcBalance?.decimal)).toFixed(4)
+										: "0.0000"} {sBtcBalance?.symbol || sbtcRates?.symbol || "sBTC"}
+								</div>
 							</div>
 						</div>
 						<div className="text-right">
-							<div className="text-white text-sm font-medium">{btcRate && `$${formatNumber(Number(ft?.balance) * Number(btcRate?.current_price), 2)}`}</div>
+							<div className="text-white text-sm font-medium">
+								{sBtcBalance && sbtcRates ? <p>${formatNumber(Number(sBtcBalance?.balance) * Number(sbtcRates?.usdPrice), 2)}</p> : <p>$0.00</p>}
+							</div>
 						</div>
 					</div>
-				</div>)}
+				</div>
 
 				<div className="space-y-3">
 					<div
@@ -85,19 +91,45 @@ const AssetOverview = ({ assets = [], stx, nfts, fts, stxRate, btcRate }: { asse
 					>
 						<div className="flex items-center space-x-3">
 							<div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
-								<NftIcon className="h-4 w-4 text-purple-400" />
+								<Coins className="h-4 w-4 text-purple-400" />
 							</div>
 							<div>
-								<div className="text-white font-medium">NFTs</div>
-								{/* <div className="text-slate-400 text-sm">Nft</div> */}
+								<div className="text-white font-medium">Assets</div>
+								<div className="text-slate-400 text-sm">{ftBalance?.length}</div>
 							</div>
 						</div>
 						<div className="text-right">
-							<div className="text-white font-medium">{nfts.length}</div>
-							{/* <div className="text-slate-400 text-sm">{asset.usdValue}</div> */}
+							<SecondaryButton asChild variant={undefined}>
+								<Link to={`/send/${smartWalletAddress}`}>
+									<ArrowUpRight className="mr-2 h-4 w-4" />
+									Send Assets
+								</Link>
+							</SecondaryButton>
 						</div>
 					</div>
 				</div>
+
+				<div className="space-y-3">
+					<div
+						className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
+					>
+						<div className="flex items-center space-x-3">
+							<div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center">
+								<Image className="h-4 w-4 text-purple-400" />
+							</div>
+							<div>
+								<div className="text-white font-medium">Collectibles</div>
+								<div className="text-slate-400 text-sm">{nftBalance?.length}</div>
+							</div>
+						</div>
+						<div className="text-right">
+							<Button variant="secondary" className="flex items-center justify-center text-slate-200 bg-slate-800/50">
+								<View className="mr-2 h-4 w-4" /> View All
+							</Button>
+						</div>
+					</div>
+				</div>
+
 			</CardContent>
 		</Card>
 	);

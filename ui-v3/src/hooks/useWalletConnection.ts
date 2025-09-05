@@ -52,7 +52,7 @@ export const useWalletConnection = () => {
         console.error("Error getting wallet data:", error)
       }
     }
-  }, []);
+  }, [isConnected()]);
 
   const connectWallet = async () => {
     try {
@@ -80,7 +80,7 @@ export const useWalletConnection = () => {
   }
   const disconnectWallet = () => {
     disconnect()
-    setIsWalletConnected(false)
+    setIsWalletConnected(isConnected())
     setWalletData(null)
     console.log("Wallet disconnected")
   }

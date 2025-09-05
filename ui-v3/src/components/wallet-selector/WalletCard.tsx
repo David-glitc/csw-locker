@@ -83,7 +83,7 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
           </div>
         </div>
 
-        {wallet.extensions.length > 0 &&
+        {wallet.extensions && wallet.extensions.length > 0 &&
           <div>
             <div className="text-slate-400 text-sm">Extensions</div>
             <div className="flex flex-wrap gap-1 mt-1">

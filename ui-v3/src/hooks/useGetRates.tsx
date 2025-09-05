@@ -1,74 +1,63 @@
-import { getRates } from "@/utils/getRates";
+import { getRates } from "@/services/getRates";
+import { CharismaTokenData } from "@/services/types";
 import { useEffect, useState } from "react";
+import { toast } from "./use-toast";
 
-export type TokenMarketData = {
-	ath: number
-	ath_change_percentage: number
-	ath_date: string
-	atl: number
-	atl_change_percentage: number
-	atl_date: string
-	circulating_supply: number
-	current_price: number
-	fully_diluted_valuation: number
-	high_24h: number
-	id: string
-	image: string
-	last_updated: string
-	low_24h: number
-	market_cap: number
-	market_cap_change_24h: number
-	market_cap_change_percentage_24h: number
-	market_cap_rank: number
-	max_supply: number
-	name: string
-	price_change_24h: number
-	price_change_percentage_24h: number
-	roi: {
-	  times: number
-	  currency: string
-	  percentage: number
-	} | null
-	symbol: string
-	total_supply: number
-	total_volume: number
-}
-
-export default function useGetRates(symbol?: string) {
-	const [rates, setRates] = useState<{ [key: string]: TokenMarketData } | TokenMarketData>()
-	const [loading, setLoading] = useState(false)
-
-	const storageKey = `rates-cache-${symbol ? symbol : ""}`
+export default function useGetRates(contractId?: string) {
+	const [rates, setRates] = useState<CharismaTokenData | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		async function fetchData() {
-			setLoading(true)
-
-			const cached = localStorage.getItem(storageKey)
-			const now = Date.now()
-
-			if (cached) {
-				try {
-					const parsed = JSON.parse(cached)
-
-					if(now - parsed.timestamp < 5 * 60 * 1000) {
-						setRates(parsed)
-						setLoading(false)
-						return
-					}
-				} catch (error) {
-					localStorage.removeItem(storageKey)
-				}					
-			}
-
-			const res = await getRates(symbol)
-			localStorage.setItem(storageKey, JSON.stringify({ timestamp: Date.now(), ...res }))
-			
-			setRates(res)
-			setLoading(false)
+		if (!contractId) {
+			// Reset state when no contractId is provided
+			setRates(null);
+			setError(null);
+			setLoading(false);
+			return;
 		}
-		fetchData()
-	}, [symbol])
 
-	return { rates, loading }
+		async function fetchData() {
+			setLoading(true);
+			setError(null);
+
+			try {
+				const res = await getRates(contractId);
+				if (res) {
+					setRates(res);
+				} else {
+					setError("No rate data available for this token");
+					setRates(null);
+				}
+			} catch (err) {
+				const errorMessage = err instanceof Error ? err.message : 'Failed to fetch rates';
+				setError(errorMessage);
+				setRates(null);
+				
+				// Show toast notification for errors
+				toast({
+					title: "Rate Fetch Error",
+					description: errorMessage,
+					variant: "destructive"
+				});
+			} finally {
+				setLoading(false);
+			}
+		}
+		
+		fetchData();
+	}, [contractId]);
+
+	return { 
+		rates, 
+		loading, 
+		error,
+		// Convenience getters
+		usdPrice: rates?.usdPrice || 0,
+		marketPrice: rates?.marketPrice || 0,
+		symbol: rates?.symbol || "",
+		name: rates?.name || "",
+		confidence: rates?.confidence || 0,
+		lastUpdated: rates?.lastUpdated || 0
+	};
 }

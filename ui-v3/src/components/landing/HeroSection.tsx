@@ -1,18 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Wallet, Send, Play } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
+import { Link, useNavigate } from "react-router-dom";
+import { useGlobalWallet } from "@/hooks/useGlobalWallet";
 import SecondaryButton from "../ui/secondary-button";
 import PrimaryButton from "../ui/primary-button";
+import { useEffect } from "react";
 
 const HeroSection = () => {
-  const { isWalletConnected, connectWallet, connectDemoWallet, isConnecting } = useWalletConnection();
+  const { isWalletConnected, connectWallet, isConnecting, walletData, hasWallet } = useGlobalWallet();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    console.log({ isWalletConnected, hasWallet, walletData })
+  }, [isWalletConnected, hasWallet, walletData])
 
   const handleGetStarted = () => {
-    if (isWalletConnected) {
+    if (isWalletConnected && hasWallet) {
       // Navigate to dashboard if already connected
-      window.location.href = '/wallet-selector';
+      navigate('/wallet-selector');
     } else {
       // Connect wallet if not connected
       connectWallet();
@@ -20,11 +26,8 @@ const HeroSection = () => {
   };
 
   const handleDemoMode = () => {
-    connectDemoWallet();
-    // Navigate to wallet selector after connecting demo wallet
-    setTimeout(() => {
-      window.location.href = '/wallet-selector';
-    }, 100);
+    // Navigate to wallet selector for demo mode
+    navigate('/wallet-selector?demo=true');
   };
 
   return (
@@ -62,7 +65,7 @@ const HeroSection = () => {
               size="lg"
               disabled={isConnecting}
             >
-              {isConnecting ? "Connecting..." : isWalletConnected ? "Go to Dashboard" : "Connect Wallet"}
+              {isConnecting ? "Connecting..." : (isWalletConnected && hasWallet) ? "Go to Dashboard" : "Connect Wallet"}
               <Send className="ml-2 h-4 w-4" />
             </PrimaryButton>
             <SecondaryButton
