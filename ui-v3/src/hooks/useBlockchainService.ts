@@ -121,6 +121,7 @@ export const useBlockchainService = () => {
     addAdmin: blockchainService.addAdmin,
     transferOwnership: blockchainService.transferOwnership,
     depositSTX: blockchainService.depositSTX,
+    depositFT: blockchainService.depositFT,
     // isDemoMode
   };
 };

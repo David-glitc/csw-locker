@@ -181,4 +181,41 @@ export class BlockchainService {
       // Assume data.txid and network are returned
       return { txid: data.txid, network };
    }
+
+   async depositFT(params: {
+    token: string;
+    to: string;
+    amount: string; 
+    decimals: number;
+    sender:string
+  }): Promise<{ txid: string; network: string }> {
+    
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [contract, tokenName] = params.token.split('::') as any;
+    const [address, contractName] = contract.split('.');
+    const { network } = getClientConfig(params.to);
+    
+    const amount = params.amount;
+    const sender = params.sender || params.to.split('.')[0];
+   const postConditions = [Pc.principal(sender).willSendLte(amount).ft(contract, tokenName)]
+
+    const data = await request(
+      "stx_callContract",
+      {
+        contract: `${address}.${contractName}`,
+        functionName: "transfer",
+        functionArgs: [
+          Cl.uint(amount),
+          Cl.principal(sender), 
+          Cl.principal(params.to),
+          Cl.none()
+        ],
+        network,
+        postConditions,
+         postConditionMode: "deny"
+      }
+    );
+    return { txid: data.txid, network };
+  }
 }
