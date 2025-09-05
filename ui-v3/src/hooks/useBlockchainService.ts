@@ -28,14 +28,7 @@ export const useBlockchainService = () => {
     transactions,
     recipients,
     smartWallets,
-    isLoading,
-<<<<<<< HEAD
-    addAdmin: blockchainService.addAdmin,
-    transferOwnership: blockchainService.transferOwnership,
-    depositSTX: blockchainService.depositSTX,
-    depositFT: blockchainService.depositFT,
-=======
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
+    isLoading
     // isDemoMode
   };
 };

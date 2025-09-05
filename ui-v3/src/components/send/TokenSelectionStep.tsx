@@ -63,8 +63,6 @@ const TokenSelectionStep = ({
    const selectedBalance = parseFloat(selectedFt?.balance || "0");
    const isValid = asset && amount && amountNum > 0 && amountNum <= selectedBalance;
 
-   console.log({ processedFtTokens, selectedFt });
-
    return (
       <div className="space-y-6">
          <h3 className="text-lg font-semibold text-white">

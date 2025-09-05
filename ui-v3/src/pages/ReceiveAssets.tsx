@@ -10,28 +10,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowDown, Wallet, Download } from "lucide-react";
-import QRCode from "react-qr-code";
+import QRCode from 'react-qr-code';
 import { useParams } from "react-router-dom";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { Copy, Check } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { getClientConfig } from "@/utils/chain-config";
 import PrimaryButton from "@/components/ui/primary-button";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
-<<<<<<< HEAD
-import { useSelectedWallet } from "@/hooks/useSelectedWallet";
-import { toMicroAmount, fromMicroAmount } from "@/lib/tokenAmountUtils";
-=======
 import { useTxServices } from "@/hooks/useTxServices";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
 
 const ReceiveAssets = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
@@ -46,25 +35,9 @@ const ReceiveAssets = () => {
   const [depositSuccess, setDepositSuccess] = useState<{ txid: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [stxUsd, setStxUsd] = useState<number | null>(null);
-<<<<<<< HEAD
-  const userWalletAddress = selectedWallet?.address || "";
-  const {
-    stxBalance,
-    loading: balanceLoading,
-    error: balanceError,
-    ftBalance,
-  } = useAccountBalanceService(userWalletAddress);
-  const [showMaxWarning, setShowMaxWarning] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<"STX" | string>("STX");
-
-  useEffect(() => {
-    fetchStxUsdPrice().then(setStxUsd);
-  }, []);
-=======
   const [showMaxWarning, setShowMaxWarning] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const { toast } = useToast();
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
 
   const copyToClipboard = () => {
     if (walletId) {
@@ -101,25 +74,6 @@ const ReceiveAssets = () => {
     if (!walletId || !depositAmount) return;
     setIsDepositing(true);
     try {
-<<<<<<< HEAD
-      let result;
-      if (selectedAsset === "STX") {
-        const microStxAmount = toMicroAmount(depositAmount, 6);
-        result = await depositSTX({ to: walletId, amount: microStxAmount });
-      } else {
-        const ft = ftBalance?.find((ft) => ft.symbol === selectedAsset);
-        if (!ft) throw new Error("Token not found");
-
-        const baseAmount = toMicroAmount(depositAmount, ft.decimals || 6);
-        result = await depositFT({
-          token: ft.token,
-          to: walletId,
-          amount: baseAmount,
-          decimals: ft.decimals || 6,
-          sender: selectedWallet?.address,
-        });
-      }
-=======
       const result = await deposit({
         from: walletData?.addresses.stx[0]?.address,
         to: walletId,
@@ -129,7 +83,6 @@ const ReceiveAssets = () => {
         decimal: selectedFt?.decimal || 6,
         contractAddress: selectedFt?.contract || ""
       });
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
       setDepositSuccess(result);
 
       toast({
@@ -139,29 +92,13 @@ const ReceiveAssets = () => {
       });
 
     } catch (e) {
-      toast({
-        title: "Deposit Failed",
-        description: String(e),
-        variant: "destructive",
-      });
+      toast({ title: "Deposit Failed", description: String(e), variant: "destructive" });
     } finally {
       setIsDepositing(false);
     }
   };
 
-<<<<<<< HEAD
-  // Helper to get available balance for selected asset
-  const getAvailableBalance = () => {
-    if (selectedAsset === "STX") {
-      return stxBalance?.balance ? Number(fromMicroAmount(stxBalance.balance, 6)) : 0;
-    }
-    const ft = ftBalance?.find((ft) => ft.symbol === selectedAsset);
-    return ft ? Number(fromMicroAmount(ft.balance, ft.decimals || 6)) : 0;
-  };
-  const available = getAvailableBalance();
-=======
   const available = useMemo(() => +selectedFt?.balance || 0, [selectedFt]);
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
 
   // Handler for Max button
   const handleMax = () => {
@@ -193,9 +130,7 @@ const ReceiveAssets = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Receive Assets</h1>
-          <p className="text-slate-400">
-            Share your wallet address to receive STX and other assets.
-          </p>
+          <p className="text-slate-400">Share your wallet address to receive STX and other assets.</p>
         </div>
 
         <Card className="bg-slate-800/50 border-slate-700">
@@ -214,9 +149,7 @@ const ReceiveAssets = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-slate-400 text-sm">
-                  Your Smart Wallet Address:
-                </p>
+                <p className="text-slate-400 text-sm">Your Smart Wallet Address:</p>
                 <div className="flex items-center space-x-2">
                   <Input
                     value={walletId || "Loading..."}
@@ -228,19 +161,11 @@ const ReceiveAssets = () => {
                     className="bg-purple-600 hover:bg-purple-700"
                     disabled={!walletId}
                   >
-                    {copied ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
               </div>
-              <PrimaryButton
-                className="mx-auto w-1/3 flex items-center justify-center gap-2 text-base font-semibold"
-                onClick={() => setShowDepositModal(true)}
-                disabled={!walletId}
-              >
+              <PrimaryButton className="mx-auto w-1/3 flex items-center justify-center gap-2 text-base font-semibold" onClick={() => setShowDepositModal(true)} disabled={!walletId}>
                 <Download className="w-4 h-4 mr-1" />
                 Deposit
               </PrimaryButton>
@@ -260,9 +185,7 @@ const ReceiveAssets = () => {
                 </div>
                 <div>
                   <div className="text-white font-medium">Stacks (STX)</div>
-                  <div className="text-slate-400 text-sm">
-                    Native Stacks token
-                  </div>
+                  <div className="text-slate-400 text-sm">Native Stacks token</div>
                 </div>
               </div>
 
@@ -292,9 +215,7 @@ const ReceiveAssets = () => {
                 </div>
                 <div>
                   <div className="text-white font-medium">NFTs</div>
-                  <div className="text-slate-400 text-sm">
-                    Non-fungible tokens
-                  </div>
+                  <div className="text-slate-400 text-sm">Non-fungible tokens</div>
                 </div>
               </div>
             </div>
@@ -308,9 +229,8 @@ const ReceiveAssets = () => {
               <div className="space-y-1">
                 <h3 className="text-blue-300 font-medium">Security Notice</h3>
                 <p className="text-blue-200 text-sm">
-                  Only share your wallet address with trusted sources. Never
-                  share your private keys or seed phrase. This address can be
-                  used to send assets to your smart wallet securely.
+                  Only share your wallet address with trusted sources. Never share your private keys or seed phrase.
+                  This address can be used to send assets to your smart wallet securely.
                 </p>
               </div>
             </div>
@@ -327,35 +247,17 @@ const ReceiveAssets = () => {
             </DialogHeader>
             {depositSuccess ? (
               <div className="flex flex-col gap-4 items-center">
-                <div className="text-green-400 font-bold text-lg">
-                  Deposit Successful!
-                </div>
-                <div className="text-white text-sm break-all">
-                  TxID: {depositSuccess.txid}
-                </div>
+                <div className="text-green-400 font-bold text-lg">Deposit Successful!</div>
+                <div className="text-white text-sm break-all">TxID: {depositSuccess.txid}</div>
                 <a
-                  href={getClientConfig(walletId).explorer(
-                    `txid/${depositSuccess.txid}`
-                  )}
+                  href={getClientConfig(walletId).explorer(`txid/${depositSuccess.txid}`)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-400 underline mt-2"
                 >
                   View on Explorer
                 </a>
-<<<<<<< HEAD
-                <Button
-                  onClick={() => {
-                    setShowDepositModal(false);
-                    setDepositSuccess(null);
-                    setDepositAmount("");
-                  }}
-                >
-                  Close
-                </Button>
-=======
                 <Button onClick={() => { setShowDepositModal(false); resetForm(); }}>Close</Button>
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
               </div>
             ) : (
               <>
@@ -363,39 +265,12 @@ const ReceiveAssets = () => {
                   <label className="text-slate-300 text-sm">Asset</label>
                   <Select
                     value={selectedAsset}
-<<<<<<< HEAD
-                    onChange={(e) => {
-                      setSelectedAsset(e.target.value);
-                      setDepositAmount("");
-                      setShowMaxWarning(false);
-=======
                     onValueChange={(value) => {
                       setSelectedAsset(value);
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
                     }}
                     required
                     disabled={balanceLoading}
                   >
-<<<<<<< HEAD
-                    <option value="STX">
-                      STX (Available:{" "}
-                      {stxBalance?.balance
-                        ? (Number(stxBalance.balance) / 1e6).toLocaleString(
-                            undefined,
-                            { maximumFractionDigits: 6 }
-                          )
-                        : 0}
-                      )
-                    </option>
-                    {ftBalance &&
-                      ftBalance.map((ft) => (
-                        <option key={ft.symbol} value={ft.symbol}>
-                          {ft.symbol} (Available:{" "}
-                          {Number(ft.balance) / Math.pow(10, ft.decimals || 6)})
-                        </option>
-                      ))}
-                  </select>
-=======
                     <SelectTrigger className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600 hover:border-slate-500">
                       <SelectValue placeholder={balanceLoading ? "Loading Tokens..." : "Select Token"} />
                     </SelectTrigger>
@@ -426,7 +301,6 @@ const ReceiveAssets = () => {
                       ))}
                     </SelectContent>
                   </Select>
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
                   <label className="text-slate-300 text-sm flex items-center justify-between">
                     Amount
                     <Button
@@ -442,66 +316,31 @@ const ReceiveAssets = () => {
                   <Input
                     type="number"
                     min="0"
-                    placeholder={
-                      balanceLoading
-                        ? "Loading..."
-                        : `Max: ${available.toFixed(6)}`
-                    }
+                    placeholder={balanceLoading ? "Loading..." : `Max: ${available.toFixed(6)}`}
                     value={depositAmount}
                     onChange={handleAmountChange}
                     className="bg-slate-700/50 border-slate-600 text-white"
                     disabled={isDepositing || balanceLoading}
                   />
                   {showMaxWarning && (
-                    <div className="text-xs text-yellow-400 mt-1">
-                      Warning: You are about to deposit your entire{" "}
-                      {selectedAsset} balance.
-                    </div>
+                    <div className="text-xs text-yellow-400 mt-1">Warning: You are about to deposit your entire {selectedAsset} balance.</div>
                   )}
-                  {depositAmount && stxUsd && selectedAsset === "STX" && (
+                  {depositAmount && stxUsd && selectedAsset === 'STX' && (
                     <div className="text-xs text-slate-400 mt-1">
-                      ≈ $
-                      {(Number(depositAmount) * stxUsd).toLocaleString(
-                        undefined,
-                        { maximumFractionDigits: 2 }
-                      )}{" "}
-                      USD
+                      ≈ ${(Number(depositAmount) * stxUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
                     </div>
                   )}
                   <label className="text-slate-300 text-sm">To Wallet</label>
                   <div className="flex items-center space-x-2">
-                    <Input
-                      value={walletId || "Loading..."}
-                      readOnly
-                      className="bg-slate-700/50 border-slate-600 text-white text-center"
-                    />
-                    <Button
-                      onClick={copyToClipboard}
-                      className="bg-purple-600 hover:bg-purple-700"
-                      disabled={!walletId}
-                    >
-                      {copied ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                    <Input value={walletId || "Loading..."} readOnly className="bg-slate-700/50 border-slate-600 text-white text-center" />
+                    <Button onClick={copyToClipboard} className="bg-purple-600 hover:bg-purple-700" disabled={!walletId}>
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>
                   </div>
                   {balanceError && (
-                    <div className="text-xs text-red-400 mt-1">
-                      Error loading balance.
-                    </div>
+                    <div className="text-xs text-red-400 mt-1">Error loading balance.</div>
                   )}
-<<<<<<< HEAD
-                  <div className="text-xs text-slate-400 mt-1">
-                    Available:{" "}
-                    {balanceLoading
-                      ? "Loading..."
-                      : `${available.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selectedAsset}`}
-                  </div>
-=======
                   <div className="text-xs text-slate-400 mt-1">Available: {balanceLoading ? "Loading..." : selectedAsset ? `${available.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selectedAsset}` : "Select a token"}</div>
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
                 </div>
                 <DialogFooter className="flex gap-2">
                   <Button
@@ -514,23 +353,10 @@ const ReceiveAssets = () => {
                   </Button>
                   <Button
                     onClick={handleDeposit}
-<<<<<<< HEAD
-                    disabled={
-                      !depositAmount ||
-                      isDepositing ||
-                      Number(depositAmount) > available ||
-                      Number(depositAmount) <= 0 ||
-                      balanceLoading
-                    }
-                    className="bg-green-600 hover:bg-green-700 w-full"
-=======
                     disabled={!selectedAsset || !depositAmount || isDepositing || Number(depositAmount) > available || Number(depositAmount) <= 0 || balanceLoading}
                     className="flex-1 bg-green-600 hover:bg-green-700"
->>>>>>> 6632ce3 (Review 2025-07-04 #77)
                   >
-                    {isDepositing
-                      ? `Depositing...`
-                      : `Deposit ${Number(depositAmount).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selectedAsset}`}
+                    {isDepositing ? `Depositing...` : `Deposit ${(Number(depositAmount)).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selectedAsset}`}
                   </Button>
                 </DialogFooter>
               </>

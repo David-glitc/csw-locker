@@ -61,8 +61,7 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
         })
       );
 
-      setDeployedContracts(updatedContracts);
-      console.log(`Successfully fetched ${updatedContracts.length} smart wallets with updated balances`);
+                  setDeployedContracts(updatedContracts);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch wallet data';

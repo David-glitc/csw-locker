@@ -1,6 +1,5 @@
-import { useLocation, useParams, useSearchParams } from "react-router-dom";
+import {  useParams, useSearchParams } from "react-router-dom";
 import { ReactNode, useEffect, useState } from "react";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import WalletHeader from "./WalletHeader";
 import MobileNavigationDrawer from "./MobileNavigationDrawer";
@@ -38,17 +37,9 @@ const WalletLayout = ({ children }: WalletLayoutProps) => {
       setNetworkParams({ network: isMainnet ? "mainnet" : "testnet" });
    }, [networkParams, setNetworkParams]);
 
-   if (!selectedWallet) {
-      return (
-         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-            <div className="text-white">Loading wallet...</div>
-         </div>
-      );
-   }
-
    const currentWallet = {
-      name: selectedWallet.name,
-      contractId: selectedWallet.contractId,
+      name: selectedWallet?.name,
+      contractId: selectedWallet?.contractId,
       balance: stxBalance ? `${Number(formatNumber(+stxBalance?.balance, stxBalance?.decimal)).toFixed(4) ?? '0.0000'}` : "0.0000",
       usdValue: stxBalance && stxRate ? `$${formatNumber(+stxBalance?.balance * +stxRate?.usdPrice, 2)}` : "..."
    };

@@ -184,7 +184,7 @@ const DelegateStx: React.FC<Props> = ({ extensionInfo }) => {
                 </PrimaryButton>
                 <PrimaryButton
                     className="flex-1"
-                    disabled={!amount || !recipient || !walletId || isLoading || isAmountInvalid}
+                    disabled={!amount || !recipient || !walletId || isLoading || (action === 'delegate' && isAmountInvalid)}
                     onClick={handleExecuteAction}
                 >
                     {isLoading ? "Executing..." : "Execute Action"}

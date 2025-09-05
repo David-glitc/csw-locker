@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ContractType, getVerifiedContracts } from "@/data/walletTypes";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import useSmartWalletContractService from "@/hooks/useSmartWalletContractService";
-import { CheckCircle, Wallet } from "lucide-react";
+import { CheckCircle, Puzzle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -35,7 +35,7 @@ const GenericActions = () => {
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader>
             <CardTitle className="text-white flex items-center">
-              <Wallet className="mr-2 h-5 w-5 text-purple-400" />
+              <Puzzle className="mr-2 h-5 w-5 text-purple-400" />
               {extensions[extensionIndex]?.label ?? 'NA'}
             </CardTitle>
           </CardHeader>

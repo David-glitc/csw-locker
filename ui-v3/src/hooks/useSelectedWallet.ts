@@ -42,8 +42,7 @@ export const useSelectedWallet = () => {
           isImported: Boolean(wallet?.isImported),
         };
 
-        console.log('===============>>>>>>>>>>>>><<<<<<<<<<<<<<<', { extendedWallet });
-        setSelectedWallet(extendedWallet);
+                    setSelectedWallet(extendedWallet);
       } catch (error) {
         console.error('Failed to validate wallet:', error);
         setSelectedWallet(null);
@@ -55,12 +54,10 @@ export const useSelectedWallet = () => {
 
   const switchWallet = (walletId: string) => {
     // This would typically navigate to the new wallet or update the selected wallet
-    console.log(`Switching to wallet: ${walletId}`);
   };
 
   const updateSelectedWallet = async (wallet: Partial<SelectedWallet>) => {
     const isAdmin = await validateIsAdmin(walletData?.addresses.stx?.[0]?.address, wallet.contractId)
-    console.log({ isAdmin })
     const extendedWallet = {
       ...wallet,
       address: wallet.contractId,

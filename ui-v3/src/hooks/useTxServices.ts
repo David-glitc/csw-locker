@@ -56,7 +56,6 @@ export const useTxServices = () => {
   ): Promise<void | null> => {
     setIsLoading(true);
     setError(null);
-    console.log("Calling extension contract:", { walletId, params });
     try {
       const result = await txServices.callExtensionContract(walletId, params);
 
@@ -203,7 +202,6 @@ export const useTxServices = () => {
   }): Promise<{ txid: string } | null> => {
     setIsLoading(true);
     setError(null);
-    console.log("Depositing:", { params });
     try {
       const result = await txServices.deposit(params);
 
@@ -236,7 +234,6 @@ export const useTxServices = () => {
   const isAdmin = useCallback(async (address: string, contractId: string): Promise<boolean> => {
     try {
       const result = await txServices.isAdmin(address, contractId);
-      console.log({ result });
       return result;
     } catch (error) {
       console.error('Check admin failed:', error);

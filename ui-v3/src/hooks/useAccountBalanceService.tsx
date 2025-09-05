@@ -76,11 +76,10 @@ export function useAccountBalanceService(walletAddress: string) {
             });
           }
           
-          setFtBalance(combinedFtBalance);
-          setRawBalance(result.balances);
-          setNftMetadata(result.nftMetadata);
-          setFtMetadata(result.ftMetadata);
-          console.log('Metadata fetched:', { nftMetadata: result.nftMetadata, ftMetadata: result.ftMetadata });
+                  setFtBalance(combinedFtBalance);
+        setRawBalance(result.balances);
+        setNftMetadata(result.nftMetadata);
+        setFtMetadata(result.ftMetadata);
         } else {
           setError("Failed to fetch account balances");
         }
