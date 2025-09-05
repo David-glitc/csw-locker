@@ -2,13 +2,14 @@ import PrimaryButton from "@/components/ui/primary-button";
 import SecondaryButton from "@/components/ui/secondary-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Recipient } from "@/services/blockchainService";
+import { Recipient } from "@/services/interfaces";
 import { Button } from "@/components/ui/button";
 
 interface RecipientSelectionStepProps {
   recipient: string;
   recipients: Recipient[];
   onRecipientChange: (recipient: string) => void;
+  onRemoveRecipient?: (address: string) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -17,6 +18,7 @@ const RecipientSelectionStep = ({
   recipient, 
   recipients, 
   onRecipientChange, 
+  onRemoveRecipient,
   onNext, 
   onBack 
 }: RecipientSelectionStepProps) => {
@@ -47,14 +49,29 @@ const RecipientSelectionStep = ({
                   <div className="text-white text-sm">{recentRecipient.address}</div>
                   <div className="text-slate-400 text-xs">Last sent: {recentRecipient.lastSent} • {recentRecipient.frequency} transactions</div>
                 </div>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="text-purple-400 hover:text-purple-300 hover:bg-purple-600/20" 
-                  onClick={() => onRecipientChange(recentRecipient.address)}
-                >
-                  Use
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="text-purple-400 hover:text-purple-300 hover:bg-purple-600/20" 
+                    onClick={() => onRecipientChange(recentRecipient.address)}
+                  >
+                    Use
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="text-red-400 hover:text-red-300 hover:bg-red-600/20" 
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering parent click
+                      if (onRemoveRecipient) {
+                        onRemoveRecipient(recentRecipient.address);
+                      }
+                    }}
+                  >
+                    ×
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

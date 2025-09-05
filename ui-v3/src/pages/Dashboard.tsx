@@ -14,6 +14,7 @@ import { formatNumber } from "@/utils/numbers";
 import useGetRates from "@/hooks/useGetRates";
 import { useEffect, useState } from "react";
 import { TransactionDataService } from "@/services/transactionDataService";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const service = new TransactionDataService();
 
@@ -22,11 +23,10 @@ const Dashboard = () => {
   const { selectedWallet: walletData, isLoading } = useSelectedWallet();
   const { stxBalance, nftBalance, ftBalance, loading, error } = useAccountBalanceService(walletId)
   const { extensions, loading: extensionsLoading } = useSmartWalletContractService(walletId?.split('.')[0])
-  console.log({ walletData })
 
   // Use the useGetRates hook for STX and sBTC rates
   const { rates: stxRates, loading: stxLoading, usdPrice: stxUsdPrice, error: stxError } = useGetRates(".stx")
-  const { rates: sbtcRates, loading: sbtcLoading, usdPrice: sbtcUsdPrice, error: sbtcError } = useGetRates("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token")
+  const { rates: sbtcRates, loading: sbtcLoading, usdPrice: sbtcUsdPrice, error: sbtcError } = useGetRates("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token")
 
   // Add state for transaction count
   const [txCount, setTxCount] = useState<number | null>(null);
@@ -36,18 +36,8 @@ const Dashboard = () => {
     service.getTransactionCount(walletId).then(setTxCount);
   }, [walletId]);
 
-  // Show loading state if any critical data is still loading
-  if (isLoading || loading || stxLoading || sbtcLoading || extensionsLoading) {
-    return (
-      <WalletLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-white">Loading wallet data...</div>
-        </div>
-      </WalletLayout>
-    );
-  }
-
-  if (!walletData) {
+  // Only show error state if wallet is not found after loading
+  if (!isLoading && !walletData) {
     return (
       <WalletLayout>
         <div className="flex items-center justify-center h-64">
@@ -58,7 +48,7 @@ const Dashboard = () => {
   }
 
   // Check if stacking extension is active
-  const isStackingActive = walletData.extensions?.some(ext =>
+  const isStackingActive = walletData?.extensions?.some(ext =>
     ext.toLowerCase().includes('stacking') || ext.toLowerCase().includes('stack')
   );
 
@@ -86,8 +76,6 @@ const Dashboard = () => {
 
   const usdValue = calculateUSDValue();
 
-  console.log({ stxRates, sbtcRates, stxUsdPrice, sbtcUsdPrice, usdValue })
-
   return (
     <WalletLayout>
       <div className="space-y-6">
@@ -107,9 +95,17 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                {stxBalance ? <p>{stxBalance?.balance} STX</p> : <p>0.00 STX</p>}
+                {loading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : stxBalance ? (
+                  <p>{stxBalance?.balance} STX</p>
+                ) : (
+                  <p>0.00 STX</p>
+                )}
               </div>
-              <p className="text-xs text-slate-400">{`${walletId.slice(0, 4)}...${walletId.slice(walletId.length - 15, walletId.length)}`}</p>
+              <p className="text-xs text-slate-400">
+                {walletId ? `${walletId.slice(0, 4)}...${walletId.slice(walletId.length - 15, walletId.length)}` : ''}
+              </p>
             </CardContent>
           </Card>
 
@@ -120,7 +116,13 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-400">
-                {usdValue > 0 ? <p>${formatNumber(usdValue, 2)}</p> : <p>$0.00</p>}
+                {stxLoading ? (
+                  <Skeleton className="h-8 w-20" />
+                ) : usdValue > 0 ? (
+                  <p>${formatNumber(usdValue, 2)}</p>
+                ) : (
+                  <p>$0.00</p>
+                )}
               </div>
               <p className="text-xs text-slate-400">
                 {stxError ? 'Rate unavailable' : 'Current market value'}
@@ -134,7 +136,9 @@ const Dashboard = () => {
               <Activity className="h-4 w-4 text-slate-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{txCount !== null ? txCount : "-"}</div>
+              <div className="text-2xl font-bold text-white">
+                {txCount !== null ? txCount : <Skeleton className="h-8 w-8" />}
+              </div>
               <p className="text-xs text-slate-400">Total transactions</p>
             </CardContent>
           </Card>
@@ -154,7 +158,7 @@ const Dashboard = () => {
             </SecondaryButton>
             <SecondaryButton asChild variant={undefined} className="h-20 flex-col">
               <Link to={`/receive/${walletId}`}>
-                <ArrowUpRight className="h-6 w-6 mb-2" rotate-180 />
+                <ArrowUpRight className="h-6 w-6 mb-2 rotate-180" />
                 Receive
               </Link>
             </SecondaryButton>
@@ -183,8 +187,8 @@ const Dashboard = () => {
 
         {/* Asset Overview and Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AssetOverview smartWalletAddress={walletId} walletAddress={walletData.address} />
-          <RecentActivity walletAddress={walletData.address} smartWalletAddress={walletId} />
+          <AssetOverview smartWalletAddress={walletId} walletAddress={walletData?.address || ''} />
+          <RecentActivity walletAddress={walletData?.address || ''} smartWalletAddress={walletId} />
         </div>
 
         {/* Active Extensions Section */}

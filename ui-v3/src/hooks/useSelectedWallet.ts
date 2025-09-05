@@ -1,52 +1,76 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { SmartWallet } from "@/services/interfaces";
+import useSmartWalletContractService from "./useSmartWalletContractService";
 import { useWalletConnection } from "./useWalletConnection";
-import { useBlockchainService } from "./useBlockchainService";
+import { useTxServices } from "./useTxServices";
 
-interface SelectedWallet {
-  id: string;
-  name: string;
-  contractId: string;
-  balance: string;
-  usdValue: string;
+interface SelectedWallet extends SmartWallet {
   address: string;
-  extensions?: string[];
+  isAdmin: boolean;
   isImported?: boolean;
 }
 
 export const useSelectedWallet = () => {
-  const { walletData } = useWalletConnection();
-  const { loadSmartWallets } = useBlockchainService();
-  const [selectedWallet, setSelectedWallet] = useState<SelectedWallet | null>(null);
+  const [selectedWallet, setSelectedWallet] = useState<Partial<SelectedWallet> | null>(null);
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
+  const { walletData } = useWalletConnection()
+  const { isAdmin: validateIsAdmin } = useTxServices()
+  const { validateSmartContract } = useSmartWalletContractService()
 
   useEffect(() => {
+    if (!walletId) {
+      setSelectedWallet(null);
+      return;
+    }
 
-    const isImportedWallet = walletId?.includes('.') && walletId?.length > 20;
+    const validateWallet = async () => {
+      try {
+        const wallet = await validateSmartContract(walletId);
+        if (!wallet) {
+          setSelectedWallet(null);
+          return;
+        }
 
-    const wallet: SelectedWallet = {
-      id: walletId || "default-wallet",
-      name: isImportedWallet ? "Imported Smart Wallet" : "Personal Wallet",
-      contractId: walletId || "SP1ABC...XYZ123.smart-wallet-v1",
-      balance: isImportedWallet ? "0.00 STX" : "1,234.56 STX",
-      usdValue: isImportedWallet ? "$0.00" : "$2,469.12",
-      address: walletData?.addresses?.stx?.[0]?.address || walletId || "SP1ABC...XYZ123",
-      extensions: isImportedWallet ? ["Multi-sig"] : ["Multi-sig", "Time-lock"],
-      isImported: isImportedWallet
+        const isAdmin = await validateIsAdmin(walletId.split('.')[0], walletId);
+
+        const extendedWallet = {
+          ...wallet,
+          address: wallet.contractId,
+          isAdmin: isAdmin,
+          isImported: Boolean(wallet?.isImported),
+        };
+
+                    setSelectedWallet(extendedWallet);
+      } catch (error) {
+        console.error('Failed to validate wallet:', error);
+        setSelectedWallet(null);
+      }
     };
 
-    setSelectedWallet(wallet);
-  }, [walletId, walletData]);
+    validateWallet();
+  }, [walletId]);
 
   const switchWallet = (walletId: string) => {
     // This would typically navigate to the new wallet or update the selected wallet
-    console.log(`Switching to wallet: ${walletId}`);
+  };
+
+  const updateSelectedWallet = async (wallet: Partial<SelectedWallet>) => {
+    const isAdmin = await validateIsAdmin(walletData?.addresses.stx?.[0]?.address, wallet.contractId)
+    const extendedWallet = {
+      ...wallet,
+      address: wallet.contractId,
+      isAdmin: isAdmin,
+      isImported: Boolean(wallet?.isImported),
+    }
+    setSelectedWallet(extendedWallet);
   };
 
   return {
     selectedWallet,
     switchWallet,
+    updateSelectedWallet,
     isLoading: !selectedWallet
   };
 };

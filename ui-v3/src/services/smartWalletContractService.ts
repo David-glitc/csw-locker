@@ -2,38 +2,8 @@ import { type ContractType, ContractTypes, getVerifiedContracts } from "@/data/w
 import { getClientConfig } from "@/utils/chain-config";
 import type { Transaction } from '@stacks/stacks-blockchain-api-types';
 import axios from "axios";
-
-/**
- * Interface representing a smart wallet with all its properties
- * @interface SmartWallet
- */
-export interface SmartWallet {
-  label: string;           // Display label for the wallet
-  id: number;              // Unique identifier for the wallet
-  name: string;            // Name of the wallet contract
-  contractId: string;      // Full contract identifier (address.name)
-  ext: boolean;            // Whether the wallet has extensions
-  stxHolding: number;      // STX balance held by the wallet
-  btcHolding: number;      // BTC balance held by the wallet
-  extensions: string[];    // Array of extension contract names
-  createdAt: string;       // ISO timestamp of when the wallet was created
-}
-
-/**
- * Type alias for wallet data structure
- * @type WalletType
- */
-export type WalletType = {
-  label: string;
-  id: number;
-  name: string;
-  contractId: string;
-  ext: boolean;
-  stxHolding: number;
-  btcHolding: number;
-  extensions: string[];
-  createdAt: string;
-};
+import { SmartWallet, WalletType } from './interfaces';
+import { cvToValue, fetchCallReadOnlyFunction } from "@stacks/transactions";
 
 /**
  * Standard name for smart wallet contracts
@@ -103,39 +73,35 @@ export const handleCCS = async (
   txinfo: boolean,
 ): Promise<SmartWalletContractInfo> => {
   let contractInfo: SmartWalletContractInfo;
-  
+
   try {
     // Get the appropriate API configuration based on the address
     const { api } = getClientConfig(address);
-    
+
     // Fetch contract deployment status from the Stacks API
     const statusData = (
       await axios.get(
         `${api}/extended/v2/smart-contracts/status?contract_id=${contractId}`
       )
     ).data;
-    
+
     // Extract contract info for the specific contract ID
     contractInfo = statusData?.[contractId];
 
-    console.log({ contractInfo });
-    
     // If contract was found and transaction info is requested, fetch full transaction details
     if (contractInfo?.result && txinfo) {
       const tx_info: Transaction = (
         await axios.get(`${api}/extended/v1/tx/${contractInfo?.result?.tx_id}`)
       ).data;
-      
+
       // Merge transaction info with contract info
       contractInfo = { ...contractInfo, ...tx_info };
-      console.log({ tx_info });
     }
   } catch (error) {
     // Return a safe default when API call fails
     contractInfo = { found: false };
-    console.log({ error });
   }
-  
+
   return contractInfo;
 }
 /**
@@ -145,14 +111,16 @@ export const handleCCS = async (
  * @param wallets - Wallet type configuration containing default values
  * @returns Constructed wallet object with all required properties
  */
-export const constructContractValues = (wr: any, wallets: ContractType): WalletType => {
-  const w: WalletType = {
+export const constructContractValues = (wr: any, wallets: ContractType): SmartWallet => {
+  const w: SmartWallet = {
     id: wr.tx_index,                                    // Use transaction index as unique ID
     name: wr.smart_contract.contract_id.split(".")[1],  // Extract contract name from full ID
     contractId: wr.smart_contract.contract_id,          // Full contract identifier
     stxHolding: 0,                                      // Initialize STX balance to 0
     btcHolding: 0,                                      // Initialize BTC balance to 0
-    ...wallets,                                         // Spread wallet type configuration
+    label: wallets.label,                               // Display label
+    ext: wallets.ext,                                   // Extension flag
+    extensions: [],                                     // Initialize extensions array
     createdAt: wr.block_time_iso,                       // Set creation timestamp
   };
   return w;
@@ -177,17 +145,17 @@ export class SmartWalletContractService {
         ContractTypes.map(async (wallets) => {
           // Construct full contract ID and check deployment status
           const wr = await handleCCS(walletAddress, `${walletAddress}.${wallets.name}`, true);
-          
+
           // Skip if contract was not found/deployed
           if (!wr?.found) return null;
-          
+
           // Construct wallet object from contract data
           const w = constructContractValues(wr, wallets);
-          return w;
+          return { ...w, ...wallets };
         })
       )
-    ).filter(Boolean) as WalletType[]; // Remove null entries (undeployed contracts)
-    
+    ).filter(Boolean) as SmartWallet[]; // Remove null entries (undeployed contracts)
+
     return allDeployedWallets;
   }
 
@@ -202,20 +170,33 @@ export class SmartWalletContractService {
     try {
       // Get all verified contracts with deployment status
       const verifiedContracts = await getVerifiedContracts(walletAddress);
-      
+
       // Filter for extension contracts that are deployed
-      const extensionContracts = verifiedContracts.filter(contract => 
+      const extensionContracts = verifiedContracts.filter(contract =>
         contract.ext === true && contract.isDeployed === true
       );
-      
-      console.log(`Found ${extensionContracts.length} deployed extension contracts for ${walletAddress}`);
+
       return extensionContracts;
-      
+
     } catch (error) {
       console.error('Error retrieving extension contracts:', error);
       // Return empty array on error to prevent application crashes
       return [];
     }
+  }
+
+  async validateSmartContract(contractId: string): Promise<SmartWallet | null> {
+    const wr = await handleCCS(contractId, contractId, true);
+
+    if (!wr?.found) {
+      return null;
+    }
+
+    const wallets = ContractTypes.find(info => info?.name === contractId?.split('.')?.[1]);
+    // Construct wallet object from contract data
+    const w = constructContractValues(wr, wallets);
+
+    return w;
   }
 }
 

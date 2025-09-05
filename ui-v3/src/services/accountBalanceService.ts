@@ -145,7 +145,6 @@ export class AccountBalanceService {
 
     // Find sBTC balance if it exists
     const sbtcToken = ftBalance.find((token) => token.asset_identifier === "SN69P7RZRKK8ERQCCABHT2JWKB2S4DHH9H74231T.sbtc-token::sbtc-token");
-    console.log('sbtcToken', { sbtcToken, ftBalance })
     const sBtcBalance = sbtcToken ? await this.constructFtBalance(address, sbtcToken, config) : null;
     
     return {
@@ -201,24 +200,24 @@ export class AccountBalanceService {
    * Format decimal values
    */
   private formatDecimals(value: number | string, decimals: number, isUmicro: boolean): string {
-    if (isUmicro) {
-      return (Number(value) * 10 ** decimals).toFixed(0);
-    } else {
-      return (Number(value) / 10 ** decimals).toFixed(4);
-    }
+      if (isUmicro) {
+         return (Number(value) * 10 ** decimals).toFixed(0);
+      } else {
+         return (Number(value) / 10 ** decimals).toFixed(4);
+      }
   }
 
   /**
    * Construct STX balance object
    */
   private constructStxBalance(stxRes: StxResponseBalance): FungibleType {
-    return {
-      umicro: stxRes.balance,
-      balance: this.formatDecimals(stxRes.balance, 6, false),
-      decimal: 6,
-      name: "Stacks",
-      symbol: "STX",
-      icon: "/icons/stx.png",
+      return {
+         umicro: stxRes.balance,
+         balance: this.formatDecimals(stxRes.balance, 6, false),
+         decimal: 6,
+         name: "Stacks",
+         symbol: "STX",
+         icon: "/icons/stx.png",
       contract: ".stacks",
       asset_identifier: ".stacks::stx",
     };
@@ -358,12 +357,11 @@ export class AccountBalanceService {
     ftRes: FtResponseBalance,
     config?: Partial<ApiConfig>
   ): Promise<FungibleType | null> {
-    console.log('tokenMeta', { address, ftRes, config })
     const tokenMeta = await this.handleGetFtMeta(address, ftRes.asset_identifier, config);
     if (!tokenMeta) {
       // Fallback to basic info if metadata fetch fails
       return {
-        umicro: ftRes.balance,
+         umicro: ftRes.balance,
         balance: this.formatDecimals(ftRes.balance, 6, false),
         decimal: 6,
         name: ftRes.asset_identifier?.split("::")[1],
@@ -402,7 +400,6 @@ export class AccountBalanceService {
     // For now, we'll use token_id "1" as a default, but this should be dynamic
     // based on the actual NFT holdings
     const nftMeta = await this.handleGetNftMeta(principal, "1", config);
-    console.log({ nftMeta })
     if (!nftMeta) {
       return null;
     }

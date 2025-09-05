@@ -10,37 +10,37 @@ import WalletCard from "@/components/wallet-selector/WalletCard";
 import EmptyWalletState from "@/components/wallet-selector/EmptyWalletState";
 import LoadingState from "@/components/wallet-selector/LoadingState";
 import AddExistingWalletDialog from "@/components/wallet-selector/AddExistingWalletDialog";
-import { SmartWallet } from "@/services/smartWalletContractService";
+import { SmartWallet, ContractInfoEntry } from "@/services/interfaces";
 import Notice from "@/components/wallet-selector/Notice";
 import { useToast } from "@/hooks/use-toast";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import useGetRates from "@/hooks/useGetRates";
-import { MockAccountBalanceService } from "@/services/mockAccountBalanceService";
-import { MockSmartWalletContractService } from "@/services/mockSmartWalletContractService";
+import { MockAccountBalanceService } from "@/services/mocks/mockAccountBalanceService";
+import { MockSmartWalletContractService } from "@/services/mocks/mockSmartWalletContractService";
+import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 
 const WalletSelector = () => {
   // State management
   const [isDemoMode, setIsDemo] = useState<boolean>(false);
   const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
-  const [walletsToShow, setWalletsToShow] = useState<SmartWallet[]>([]);
-  const [importedWallets, setImportedWallets] = useState<SmartWallet[]>([]);
+  const [walletsToShow, setWalletsToShow] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
+  const [importedWallets, setImportedWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
   const [demoBalance, setDemoBalance] = useState<any>(null);
-  const [demoWallets, setDemoWallets] = useState<SmartWallet[]>([]);
+  const [demoWallets, setDemoWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
 
   // Hooks
   const { walletData, isWalletConnected } = useWalletConnection();
-  const { smartWallets, extensions, loading: contractsLoading, error: contractsError } = useSmartWalletContractService(walletData?.addresses.stx?.[0]?.address);
+  const { deployedContracts, deployedContractCount, hasSmartWallets, hasExtensions, loading: deployedContractsLoading, error: deployedContractsError } = useSmartWalletContractService(walletData?.addresses.stx?.[0]?.address);
   const { stxBalance, loading: balanceLoading } = useAccountBalanceService(walletData?.addresses.stx?.[0]?.address);
-  const { rates, loading: rateLoading, usdPrice } = useGetRates('.stx');
+  const { loading: rateLoading, usdPrice } = useGetRates('.stx');
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   // Constants
   const DEMO_ADDRESS = "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7.demo-address";
 
   // Helper function to transform mock wallet data
-  const transformMockWallet = (wallet: any): SmartWallet => ({
+  const transformMockWallet = (wallet: any): SmartWallet & ContractInfoEntry => ({
     contractId: wallet.contractId,
     name: wallet.name,
     label: wallet.name,
@@ -49,7 +49,10 @@ const WalletSelector = () => {
     stxHolding: wallet.balance,
     btcHolding: 0,
     extensions: wallet.extensions || [],
-    createdAt: wallet.createdAt || new Date().toISOString().split('T')[0]
+    createdAt: wallet.createdAt || new Date().toISOString().split('T')[0],
+    icon: wallet.icon || '👤',
+    description: wallet.description || 'Demo smart wallet',
+    isDeployed: true
   });
 
   // Load demo data when in demo mode
@@ -64,7 +67,7 @@ const WalletSelector = () => {
       ]);
 
       setDemoBalance(balance);
-      setDemoWallets(wallets.map(transformMockWallet));
+      setDemoWallets(wallets.map(transformMockWallet) as (SmartWallet & ContractInfoEntry)[]);
     } catch (error) {
       console.error('Failed to load demo data:', error);
     }
@@ -89,9 +92,9 @@ const WalletSelector = () => {
     if (isDemoMode) {
       setWalletsToShow(demoWallets);
     } else {
-      setWalletsToShow([...smartWallets, ...importedWallets]);
+      setWalletsToShow([...deployedContracts, ...importedWallets]);
     }
-  }, [smartWallets, importedWallets, demoWallets, isDemoMode]);
+  }, [deployedContracts, importedWallets, demoWallets, isDemoMode]);
 
   // Event handlers
   const handleWalletAdded = (newWallet: SmartWallet) => {
@@ -108,7 +111,15 @@ const WalletSelector = () => {
       return;
     }
 
-    setImportedWallets(prev => [...prev, newWallet]);
+    // Transform the new wallet to include ContractInfoEntry properties
+    const transformedWallet: SmartWallet & ContractInfoEntry = {
+      ...newWallet,
+      icon: '👤',
+      description: 'Imported smart wallet',
+      isDeployed: true
+    };
+
+    setImportedWallets(prev => [...prev, transformedWallet]);
     toast({
       title: "Wallet Added",
       description: "Smart wallet has been added to your list successfully!",
@@ -124,11 +135,13 @@ const WalletSelector = () => {
     ? (demoBalance?.stx ? (Number(demoBalance.stx.balance) * Number(usdPrice ?? 0)).toFixed(4) : '0.0000')
     : (rateLoading ? '0.0000' : (Number(stxBalance?.balance ?? 0) * Number(usdPrice ?? 0)).toFixed(4));
 
-  const isLoading = contractsLoading;
-  const hasWallets = walletsToShow.length > 0;
-  const hasExtensions = extensions.length > 0;
-
-  console.log({ extensions, smartWallets });
+  console.log({ 
+    walletsToShow, 
+    deployedContracts, 
+    smartWalletsOnly: deployedContracts.filter(contract => !contract.ext),
+    extensionsOnly: deployedContracts.filter(contract => contract.ext),
+    importedWallets 
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -165,83 +178,91 @@ const WalletSelector = () => {
 
           {isDemoMode && <Notice />}
 
-          {isLoading ? (
-            <LoadingState />
-          ) : !hasWallets ? (
-            <EmptyWalletState />
-          ) : (
-            <>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {walletsToShow.map((wallet, index) => (
-                  <WalletCard
-                    key={`${wallet.contractId}-${index}`}
-                    wallet={wallet}
-                    isDemoMode={isDemoMode}
-                  />
-                ))}
-              </div>
-
-              {/* Extension Contracts Section */}
-              {!isDemoMode && (
-                <div className="mt-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold text-white mb-2">
-                        Extension Contracts
-                      </h2>
-                      <p className="text-slate-400">
-                        Deployed extension contracts for enhanced functionality.
-                      </p>
-                    </div>
-                    {isLoading && (
-                      <div className="text-slate-400">Loading extensions...</div>
-                    )}
+          {deployedContractsLoading
+            ? (
+              <LoadingState />
+            )
+            : !hasSmartWallets
+              ? (<EmptyWalletState />)
+              : (
+                <>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {walletsToShow
+                      .filter(wallet => !wallet.ext)
+                      .map((wallet, index) => (
+                        <WalletCard
+                          key={`${wallet.contractId}-${index}`}
+                          wallet={wallet}
+                          isDemoMode={isDemoMode}
+                        />
+                      ))}
                   </div>
 
-                  {contractsError ? (
-                    <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
-                      <p className="text-red-400">Error loading extension contracts: {contractsError}</p>
-                    </div>
-                  ) : !hasExtensions ? (
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 text-center">
-                      <p className="text-slate-400">No extension contracts found for this address.</p>
-                    </div>
-                  ) : (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {extensions.map((contract, index) => (
-                        <div key={`${contract.name}-${index}`} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                          <div className="flex items-center gap-3 mb-3">
-                            <span className="text-2xl">{contract.icon}</span>
-                            <div>
-                              <h3 className="text-white font-semibold">{contract.label}</h3>
-                              <p className="text-slate-400 text-sm">{contract.name}</p>
-                            </div>
-                          </div>
-                          <p className="text-slate-300 text-sm mb-3">{contract.description}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-green-400 text-sm font-medium">
-                              ✓ Deployed
-                            </span>
-                            <span className="text-green-400 text-sm font-medium">
-                              {contract.stxHolding} STX
-                            </span>
-                            <span className="text-green-400 text-sm font-medium">
-                              {contract.btcHolding} sBTC
-                            </span>
-                            {contract.extensions.length > 0 && (
-                              <span className="text-blue-400 text-xs">
-                                {contract.extensions.length} extensions
-                              </span>
-                            )}
-                          </div>
+                  {/* Extension Contracts Section */}
+                  {!isDemoMode && (
+                    <div className="mt-8">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="text-2xl font-bold text-white mb-2">
+                            Extension Contracts
+                          </h2>
+                          <p className="text-slate-400">
+                            Deployed extension contracts for enhanced functionality.
+                          </p>
                         </div>
-                      ))}
+                        {deployedContractsLoading && (
+                          <div className="text-slate-400">Loading extensions...</div>
+                        )}
+                      </div>
+
+                      {deployedContractsError ? (
+                        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+                          <p className="text-red-400">Error loading extension contracts: {deployedContractsError}</p>
+                        </div>
+                      ) : !hasExtensions
+                        ? (
+                          <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 text-center">
+                            <p className="text-slate-400">No extension contracts found for this address.</p>
+                          </div>
+                        )
+                        : (
+                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {deployedContracts
+                              .filter(contract => contract.ext)
+                              .map((contract, index) => (
+                                <div key={`${contract.name}-${index}`} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <span className="text-2xl">{(contract as any).icon || '📦'}</span>
+                                    <div>
+                                      <h3 className="text-white font-semibold">{contract.label}</h3>
+                                      <p className="text-slate-400 text-sm">{contract.name}</p>
+                                    </div>
+                                  </div>
+                                  <p className="text-slate-300 text-sm mb-3">{(contract as any).description || 'Extension contract for enhanced functionality'}</p>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-green-400 text-sm font-medium">
+                                      ✓ Deployed
+                                    </span>
+                                    <span className="text-green-400 text-sm font-medium">
+                                      {contract.stxHolding} STX
+                                    </span>
+                                    <span className="text-green-400 text-sm font-medium">
+                                      {contract.btcHolding} sBTC
+                                    </span>
+                                    {contract.extensions.length > 0 && (
+                                      <span className="text-blue-400 text-xs">
+                                        {contract.extensions.length} extensions
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                     </div>
                   )}
-                </div>
+                </>
               )}
-            </>
-          )}
         </div>
       </div>
     </div>

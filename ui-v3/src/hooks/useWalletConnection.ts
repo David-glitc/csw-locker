@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { connect, disconnect, isConnected, getLocalStorage, } from "@stacks/connect";
-import { useSearchParams } from "react-router-dom";
-import { StacksNetworkName, defaultUrlFromNetwork } from '@stacks/network'
-import axios from 'axios'
+import { useNavigate } from "react-router-dom";
 // Define the wallet data interface based on what @stacks/connect actually returns
 interface WalletData {
   addresses: {
@@ -23,9 +21,7 @@ export const useWalletConnection = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-
-  const [searchParams] = useSearchParams();
-  const network = searchParams.get('network')
+  const nav = useNavigate()
 
   useEffect(() => {
     // Check if user is already connected on component mount
@@ -83,13 +79,13 @@ export const useWalletConnection = () => {
     setIsWalletConnected(isConnected())
     setWalletData(null)
     console.log("Wallet disconnected")
+    nav('/')
   }
 
   return {
     isWalletConnected,
     walletData,
     isConnecting,
-    searchParams,
     connectWallet,
     disconnectWallet
   }

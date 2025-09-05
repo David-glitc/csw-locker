@@ -19,7 +19,6 @@ export async function getRates(contractId?: string): Promise<CharismaTokenData |
 			return null;
 		}
 	} catch (error) {
-		console.error('Error fetching rates:', error);
 		return null;
 	}
 }

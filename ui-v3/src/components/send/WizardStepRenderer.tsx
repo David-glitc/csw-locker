@@ -6,32 +6,35 @@ import TransactionSummaryStep from "@/components/send/TransactionSummaryStep";
 import PrimaryButton from "@/components/ui/primary-button";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "../ui/toaster";
-import { useParams } from "react-router-dom";
+import { SmartWallet } from "@/services/interfaces";
 
 type WizardStep = "assetType" | "assetDetails" | "recipient" | "summary";
 
-interface SelectedWallet {
+interface SelectedWallet extends SmartWallet {
    address: string;
-   balance: string;
+   isAdmin: boolean;
+   isImported?: boolean;
 }
 
 interface WizardStepRendererProps {
    currentStep: WizardStep;
-   assetType: "token" | "nft";
+   assetType: "ft" | "nft";
    asset: string;
    amount: string;
    tokenId: string;
    contractAddress: string;
    recipient: string;
-   selectedWallet: SelectedWallet | null;
+   selectedWallet: Partial<SelectedWallet> | null;
    recipients: any[];
    isLoading: boolean;
-   onAssetTypeChange: (type: "token" | "nft") => void;
+   onAssetTypeChange: (type: "ft" | "nft") => void;
    onAssetChange: (asset: string) => void;
    onAmountChange: (amount: string) => void;
    onTokenIdChange: (tokenId: string) => void;
    onContractAddressChange: (contractAddress: string) => void;
    onRecipientChange: (recipient: string) => void;
+   onDecimalChange: (decimal: number) => void;
+   onRemoveRecipient?: (address: string) => void;
    onStepChange: (step: WizardStep) => void;
    onSendTransaction: () => void;
 }
@@ -53,10 +56,12 @@ const WizardStepRenderer = ({
    onTokenIdChange,
    onContractAddressChange,
    onRecipientChange,
+   onDecimalChange,
+   onRemoveRecipient,
    onStepChange,
    onSendTransaction,
 }: WizardStepRendererProps) => {
-   const { toast } = useToast();
+
    switch (currentStep) {
       case "assetType":
          return (
@@ -77,16 +82,16 @@ const WizardStepRenderer = ({
          );
 
       case "assetDetails":
-         return assetType === "token" ? (
+         return assetType === "ft" ? (
             <>
                <TokenSelectionStep
                   asset={asset}
                   amount={amount}
                   contractAddress={contractAddress}
-                  selectedWallet={selectedWallet}
                   onAssetChange={onAssetChange}
                   onContractAddressChange={onContractAddressChange}
                   onAmountChange={onAmountChange}
+                  onDecimalChange={onDecimalChange}
                   onNext={() => {
                      onStepChange("recipient");
                   }}
@@ -118,6 +123,7 @@ const WizardStepRenderer = ({
                recipient={recipient}
                recipients={recipients}
                onRecipientChange={onRecipientChange}
+               onRemoveRecipient={onRemoveRecipient}
                onNext={() => onStepChange("summary")}
                onBack={() => onStepChange("assetDetails")}
             />

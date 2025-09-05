@@ -9,8 +9,7 @@ import {
    SelectTrigger,
    SelectValue,
 } from "@/components/ui/select";
-import { useEffect, useState } from "react";
-import { AccountBalanceService } from "@/services/accountBalanceService";
+import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import { useParams } from "react-router-dom";
 
 interface NFTSelectionStepProps {
@@ -24,23 +23,6 @@ interface NFTSelectionStepProps {
    onBack: () => void;
 }
 
-export type NFTBalanceResponse = {
-   asset_address: string;
-   asset_name: string;
-   contract_name: string;
-   config?: never; // Consider replacing `any` with a specific AxiosRequestConfig type if you're using Axios
-   data: string;
-   headers?: {
-      [key: string]: string;
-   };
-   id: string;
-   request?: XMLHttpRequest;
-   status: string;
-   statusText: string;
-   time: string;
-   tx: string;
-};
-
 const NFTSelectionStep = ({
    asset,
    tokenId,
@@ -52,61 +34,60 @@ const NFTSelectionStep = ({
    onBack,
 }: NFTSelectionStepProps) => {
    const isValid = asset && tokenId && contractAddress;
-   const [nftBalance, setNftBalance] = useState<NFTBalanceResponse[]>([]);
-   const [selectedNft, setSelectedNft] = useState<string>("");
    const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
-
-   useEffect(() => {
-      async function fetchNFTBalance() {
-         return await new AccountBalanceService().getNftBalance(
-            walletId,
-            "",
-            0
-         );
-      }
-
-      (async () => {
-         const balance = await fetchNFTBalance();
-         setNftBalance(balance);
-      })();
-   }, [walletId]);
+   
+   // Use the hook to get NFT balances and metadata
+   const { nftBalance, nftMetadata, loading } = useAccountBalanceService(walletId);
+   
+   // Create processed NFT tokens with metadata
+   const processedNftTokens = nftBalance.map(nft => {
+      const metadata = nftMetadata[nft.asset_identifier];
+      console.log('Processing NFT:', { nft, metadata, assetIdentifier: nft.asset_identifier });
+      return {
+         ...nft,
+         name: metadata?.metadata?.name || nft.asset_identifier.split("::")[1] || "Unknown NFT",
+         description: metadata?.metadata?.description || "",
+         image: metadata?.metadata?.cached_image || metadata?.metadata?.image || "",
+         contract: nft.asset_identifier.split("::")[0]
+      };
+   });
 
    return (
       <div className="space-y-6">
-         {nftBalance.length !== 0 ? (
-            <>
-               <h3 className="text-lg font-semibold text-white">
-                  Select NFT Details
-               </h3>
+         <h3 className="text-lg font-semibold text-white">
+            Select NFT Details
+         </h3>
 
+         {processedNftTokens.length > 0 ? (
+            <>
                <div className="space-y-2">
                   <Label htmlFor="nftAsset" className="text-slate-300">
                      Select NFT
                   </Label>
                   <Select
-                     value={selectedNft}
+                     value={asset}
                      onValueChange={(value) => {
-                        setSelectedNft(value);
-                        const nft = nftBalance.find((nft) => nft.id === value);
+                        const nft = processedNftTokens.find((nft) => nft.asset_identifier === value);
 
                         if (!nft) return;
-                        onAssetChange(nft.asset_name);
-                        onTokenIdChange(nft.id);
-                        onContractAddressChange(nft.asset_address);
+                        onAssetChange(nft.asset_identifier);
+                        onTokenIdChange("1"); // Default token ID, could be enhanced
+                        onContractAddressChange(nft.contract);
                      }}
                      required={true}
+                     disabled={loading}
                   >
                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600 hover:border-slate-500">
-                        <SelectValue placeholder="Choose an NFT to send" />
+                        <SelectValue placeholder={loading ? "Loading NFTs..." : "Choose an NFT to send"} />
                      </SelectTrigger>
                      <SelectContent className="bg-slate-700 border-slate-600">
-                        {nftBalance.map((nft) => (
+                        {processedNftTokens.map((nft) => (
                            <SelectItem
-                              value={nft.id}
-                              key={nft.id}
+                              value={nft.asset_identifier}
+                              key={nft.asset_identifier}
                               className="text-white hover:bg-slate-600 focus:bg-slate-600"
                            >
-                              {nft.asset_name}
+                              {nft.name} ({nft.count} available)
                            </SelectItem>
                         ))}
                      </SelectContent>
@@ -118,16 +99,14 @@ const NFTSelectionStep = ({
                      <Label htmlFor="tokenId" className="text-slate-300">
                         Token ID
                      </Label>
-                     {
-                        <Input
-                           id="tokenId"
-                           value={tokenId}
-                           onChange={(e) => onTokenIdChange(e.target.value)}
-                           placeholder="123"
-                           disabled={true} // Token ID is auto-filled based on selected NFT
-                           className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 hover:bg-slate-600 hover:border-slate-500"
-                        />
-                     }
+                     <Input
+                        id="tokenId"
+                        value={tokenId}
+                        onChange={(e) => onTokenIdChange(e.target.value)}
+                        placeholder="123"
+                        disabled={true} // Token ID is auto-filled based on selected NFT
+                        className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 hover:bg-slate-600 hover:border-slate-500"
+                     />
                   </div>
 
                   <div className="space-y-2">
@@ -148,25 +127,27 @@ const NFTSelectionStep = ({
                      />
                   </div>
                </div>
-
-               <div className="flex gap-3">
-                  <SecondaryButton className="flex-1" onClick={onBack}>
-                     Back
-                  </SecondaryButton>
-                  <PrimaryButton
-                     className="flex-1"
-                     disabled={!isValid}
-                     onClick={onNext}
-                  >
-                     Next
-                  </PrimaryButton>
-               </div>
             </>
          ) : (
-            <p className="text-white text-lg font-semibold">
-               No NFTs available in this wallet.
-            </p>
+            <div className="text-center py-8">
+               <p className="text-slate-400 text-lg">
+                  {loading ? "Loading NFTs..." : "No NFTs available in this wallet."}
+               </p>
+            </div>
          )}
+
+         <div className="flex gap-3">
+            <SecondaryButton className="flex-1" onClick={onBack}>
+               Back
+            </SecondaryButton>
+            <PrimaryButton
+               className="flex-1"
+               disabled={!isValid || processedNftTokens.length === 0}
+               onClick={onNext}
+            >
+               Next
+            </PrimaryButton>
+         </div>
       </div>
    );
 };

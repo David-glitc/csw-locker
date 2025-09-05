@@ -3,19 +3,20 @@ import { Badge } from "@/components/ui/badge";
 import { Send, Image } from "lucide-react";
 import PrimaryButton from "@/components/ui/primary-button";
 import SecondaryButton from "@/components/ui/secondary-button";
+import { SmartWallet } from "@/services/interfaces";
 
-interface SelectedWallet {
+interface SelectedWallet extends SmartWallet {
   address: string;
 }
 
 interface TransactionSummaryStepProps {
-  assetType: 'token' | 'nft';
+  assetType: 'ft' | 'nft';
   asset: string;
   amount: string;
   tokenId: string;
   contractAddress: string;
   recipient: string;
-  selectedWallet: SelectedWallet | null;
+  selectedWallet: Partial<SelectedWallet> | null;
   isLoading: boolean;
   onSend: () => void;
   onBack: () => void;
@@ -40,8 +41,8 @@ const TransactionSummaryStep = ({
       <div className="bg-slate-700/30 p-4 rounded-lg space-y-4">
         <div className="flex justify-between items-center">
           <span className="text-slate-400">Asset Type:</span>
-          <Badge variant={assetType === 'token' ? 'default' : 'secondary'}>
-            {assetType === 'token' ? 'Token' : 'NFT'}
+          <Badge variant={assetType === 'ft' ? 'default' : 'secondary'}>
+            {assetType === 'ft' ? 'FT' : 'NFT'}
           </Badge>
         </div>
         
@@ -50,7 +51,7 @@ const TransactionSummaryStep = ({
           <span className="text-white">{asset}</span>
         </div>
         
-        {assetType === 'token' ? (
+        {assetType === 'ft' ? (
           <div className="flex justify-between items-center">
             <span className="text-slate-400">Amount:</span>
             <span className="text-white">{amount}</span>
@@ -83,7 +84,7 @@ const TransactionSummaryStep = ({
             <span className="text-slate-400">Transaction Fee:</span>
             <span className="text-white">0.001 STX</span>
           </div>
-          {assetType === 'token' && (
+          {assetType === 'ft' && (
             <div className="flex justify-between items-center mt-2">
               <span className="text-slate-400">Total Amount:</span>
               <span className="text-white">{amount} + 0.001 STX</span>

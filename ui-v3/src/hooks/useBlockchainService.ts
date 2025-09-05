@@ -1,100 +1,18 @@
 
-import { useState, useCallback, useContext, createContext } from 'react';
-import { useWalletConnection } from './useWalletConnection';
-import { BlockchainService, TransactionParams } from '@/services/blockchainService';
-import { MockBlockchainService } from '@/services/mockBlockchainService';
-import { TransactionDataService, Transaction, Recipient } from '@/services/transactionDataService';
-import { MockTransactionDataService } from '@/services/mockTransactionDataService';
-import { AccountBalanceService, AccountBalanceType } from '@/services/accountBalanceService';
-import { MockAccountBalanceService } from '@/services/mockAccountBalanceService';
-import { SmartWalletContractService, SmartWallet, WalletActivity } from '@/services/smartWalletContractService';
-import { MockSmartWalletContractService } from '@/services/mockSmartWalletContractService';
-import { useSearchParams } from 'react-router-dom';
-import { add } from 'date-fns';
+import { useState } from 'react';
+import { BlockchainService } from '@/services/blockchainService';
+import { Transaction, Recipient, SmartWallet } from '@/services/interfaces';
 
 export const useBlockchainService = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
-  const [accountBalances, setAccountBalances] = useState<AccountBalanceType>();
   const [smartWallets, setSmartWallets] = useState<SmartWallet[]>([]);
-  const [walletActivity, setWalletActivity] = useState<WalletActivity[]>([]);
-  const [searchParams] = useSearchParams();
 
   // const { isDemMode } = useWalletConnection();
 
   // Select the appropriate services based on demo mode
   const blockchainService = new BlockchainService();
-  const transactionDataService = new TransactionDataService();
-  const accountBalanceService = new AccountBalanceService();
-  const smartWalletService = new SmartWalletContractService();
-
-  const sendTransaction = async (params: TransactionParams) => {
-    setIsLoading(true);
-    try {
-      const result = await blockchainService.sendTransaction(params);
-      return result;
-    } catch (error) {
-      console.error('Failed to send transaction:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadRecentData = useCallback(async (walletAddress: string) => {
-    setIsLoading(true);
-    try {
-      const [recentTransactions, recentRecipients] = await Promise.all([
-        transactionDataService.getRecentTransactions(walletAddress),
-        transactionDataService.getRecentRecipients(walletAddress)
-      ]);
-
-      setTransactions(recentTransactions);
-      setRecipients(recentRecipients);
-    } catch (error) {
-      console.error('Failed to load recent data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const loadAccountBalances = useCallback(async (walletAddress: string) => {
-    setIsLoading(true);
-    try {
-      const balances = await accountBalanceService.getAccountBalances(walletAddress);
-      console.log({ balances })
-      setAccountBalances(balances);
-    } catch (error) {
-      console.error('Failed to load account balances:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const loadSmartWallets = useCallback(async (walletAddress: string) => {
-    setIsLoading(true);
-    try {
-      const wallets = await smartWalletService.getSmartWallets(walletAddress);
-      setSmartWallets(wallets);
-    } catch (error) {
-      console.error('Failed to load smart wallets:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const loadWalletActivity = useCallback(async (walletAddress: string) => {
-    setIsLoading(true);
-    try {
-      const activity = await smartWalletService.getWalletActivity(walletAddress);
-      setWalletActivity(activity);
-    } catch (error) {
-      console.error('Failed to load wallet activity:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   const getTransactionStatus = async (txHash: string) => {
     try {
@@ -106,22 +24,11 @@ export const useBlockchainService = () => {
   };
 
   return {
-    sendTransaction,
-    loadRecentData,
-    loadAccountBalances,
-    loadSmartWallets,
-    loadWalletActivity,
     getTransactionStatus,
     transactions,
     recipients,
-    accountBalances,
     smartWallets,
-    walletActivity,
-    isLoading,
-    addAdmin: blockchainService.addAdmin,
-    transferOwnership: blockchainService.transferOwnership,
-    depositSTX: blockchainService.depositSTX,
-    depositFT: blockchainService.depositFT,
+    isLoading
     // isDemoMode
   };
 };

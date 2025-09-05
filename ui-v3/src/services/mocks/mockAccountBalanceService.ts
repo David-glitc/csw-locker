@@ -11,7 +11,7 @@ import {
   nftAssetType,
   GetFungibleTokenMeta,
   GetNoneFungibleTokenMeta
-} from "./types";
+} from "../types";
 
 interface ApiConfig {
   baseUrl: string;
@@ -45,7 +45,6 @@ export class MockAccountBalanceService {
    * Generic function to get mock balance data
    */
   private async getBalance<T>(address: string, config?: Partial<ApiConfig>): Promise<T | null> {
-    console.log('Mock: Fetching balance data for:', address);
     await this.delay(500); // Simulate API delay
     
     // Return mock data that matches the API schema
@@ -98,7 +97,6 @@ export class MockAccountBalanceService {
   async getAccountBalances(address: string, config?: Partial<ApiConfig>): Promise<AccountBalanceType | null> {
     if (!address) return null;
 
-    console.log('Mock: Fetching account balances for:', address);
     await this.delay(800); // Simulate API delay
 
     const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
@@ -162,7 +160,6 @@ export class MockAccountBalanceService {
     config?: Partial<ApiConfig>
   ): Promise<GetFungibleTokenMeta> {
     await this.delay(200);
-    console.log('Mock: Fetching FT metadata for:', assetIdentifier);
     
     // Return mock FT metadata
     return {
@@ -194,7 +191,6 @@ export class MockAccountBalanceService {
     config?: Partial<ApiConfig>
   ): Promise<GetNoneFungibleTokenMeta> {
     await this.delay(200);
-    console.log('Mock: Fetching NFT metadata for:', assetIdentifier);
     
     // Return mock NFT metadata
     return {

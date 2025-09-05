@@ -59,7 +59,6 @@ const RecentActivity = ({ walletAddress, smartWalletAddress }: RecentActivityPro
   }, [addressToUse]);
 
   useEffect(() => {
-    console.log("[RecentActivity] useEffect triggered. addressToUse:", addressToUse);
     setOffset(0);
     fetchTransactions(0);
     // Set up polling every 30 seconds

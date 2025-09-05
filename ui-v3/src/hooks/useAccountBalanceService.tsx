@@ -49,10 +49,37 @@ export function useAccountBalanceService(walletAddress: string) {
           setStxBalance(result.balances.stx);
           setSBtcBalance(result.balances.sbtc);
           setNftBalance(result.balances.nft || []);
-          setFtBalance(result.balances.ft || []);
-          setRawBalance(result.balances);
-          setNftMetadata(result.nftMetadata);
-          setFtMetadata(result.ftMetadata);
+          
+          // Filter out tokens with 0 balance and include STX and sBTC
+          const filteredFtBalance = (result.balances.ft || []).filter(ft => 
+            ft.balance && ft.balance !== "0" && ft.balance !== "0.000000"
+          );
+          
+          // Add STX and sBTC to ftBalance if they have non-zero balances
+          const combinedFtBalance = [...filteredFtBalance];
+          
+          if (result.balances.stx && result.balances.stx.balance && result.balances.stx.balance !== "0") {
+            combinedFtBalance.push({
+              balance: result.balances.stx.balance,
+              total_sent: result.balances.raw.stx.total_sent || "0",
+              total_received: result.balances.raw.stx.total_received || "0",
+              asset_identifier: ".stacks::stx"
+            });
+          }
+          
+          if (result.balances.sbtc && result.balances.sbtc.balance && result.balances.sbtc.balance !== "0") {
+            combinedFtBalance.push({
+              balance: result.balances.sbtc.balance,
+              total_sent: "0",
+              total_received: "0",
+              asset_identifier: result.balances.sbtc.asset_identifier || "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token"
+            });
+          }
+          
+                  setFtBalance(combinedFtBalance);
+        setRawBalance(result.balances);
+        setNftMetadata(result.nftMetadata);
+        setFtMetadata(result.ftMetadata);
         } else {
           setError("Failed to fetch account balances");
         }

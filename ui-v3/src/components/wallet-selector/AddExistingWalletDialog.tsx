@@ -58,7 +58,7 @@ const AddExistingWalletDialog = ({ onWalletAdded, isDemoMode }: AddExistingWalle
       }
       const contractInfo = ContractTypes.find(info => info?.name === walletAddress?.split('.')?.[1])
       const data = constructContractValues(found, contractInfo)
-      setWalletData(data)
+      setWalletData({ ...data, isImported: true })
       setVerificationStatus('success')
       toast({
         title: "Contract Verified",
