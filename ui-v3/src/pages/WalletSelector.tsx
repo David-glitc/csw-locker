@@ -17,7 +17,6 @@ import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import useGetRates from "@/hooks/useGetRates";
 import { MockAccountBalanceService } from "@/services/mocks/mockAccountBalanceService";
 import { MockSmartWalletContractService } from "@/services/mocks/mockSmartWalletContractService";
-import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 
 const WalletSelector = () => {
   // State management

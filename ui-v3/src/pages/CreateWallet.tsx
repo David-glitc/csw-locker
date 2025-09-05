@@ -6,29 +6,32 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Wallet, Plus, Check, Clock, User, Globe, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, Link, useParams } from "react-router-dom";
-import { getSortedExtensions } from "@/data/walletExtensions";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import SecondaryButton from "@/components/ui/secondary-button";
 import PrimaryButton from "@/components/ui/primary-button";
 import { ContractTypes, getVerifiedContracts, type ContractType } from "@/data/walletTypes";
 import { BlockchainService } from "@/services/blockchainService";
+import { useTxServices } from "@/hooks/useTxServices";
+import { getClientConfig } from "@/utils/chain-config";
 import axios from "axios";
 
 const CreateWallet = () => {
-  const { walletData } = useWalletConnection()
+  const { walletData, isWalletConnected, connectWallet, isConnecting } = useWalletConnection()
+  const { deployContract, isLoading, error } = useTxServices()
   const [description, setDescription] = useState("")
   const [selectedContract, setSelectedContract] = useState<ContractType>()
   const [isCreating, setIsCreating] = useState(false)
   const [selectedNetwork, setSelectedNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
+  const [isAutoDetected, setIsAutoDetected] = useState(false)
   const [verifiedContracts, setVerifiedContracts] = useState<ContractType[]>([])
 
   const getConnectedWalletAddress = () => {
-    if (walletData?.addresses?.stx && walletData.addresses.stx.length > 0) {
+    if (isWalletConnected && walletData?.addresses?.stx && walletData.addresses.stx.length > 0) {
       const address = walletData.addresses.stx[0].address;
       return `${address.slice(0, 6)}...${address.slice(-4)}`;
     }
-    return "Not Connected";
+    return "Connect Wallet";
   };
 
   const handleExtensionToggle = (contract: ContractType) => {
@@ -36,23 +39,37 @@ const CreateWallet = () => {
   };
 
   const handleCreateWallet = async () => {
+    if (!selectedContract) {
+      console.error('No contract selected');
+      return;
+    }
+
     setIsCreating(true);
-    const deployContract = new BlockchainService
-    const clarityCode: string = (await axios.get(selectedContract?.src)).data;
-    deployContract.deployContract({
-      name: selectedContract.name,
-      clarityCode: clarityCode,
-      clarityVersion: 3
-    })
-    // Simulate wallet creation
-    setTimeout(() => {
+
+    try {
+      // Fetch the Clarity code from the contract source
+      const clarityCode: string = (await axios.get(selectedContract.src)).data;
+
+      // Deploy the contract using the useTxServices hook
+      await deployContract({
+        name: selectedContract.name,
+        clarityCode: clarityCode,
+        clarityVersion: 3
+      });
+
+      console.log('Contract deployment initiated successfully');
+      // Optionally navigate to the new wallet or show success message
+    } catch (error) {
+      console.error('Failed to deploy contract:', error);
+    } finally {
       setIsCreating(false);
-    }, 2000);
+    }
   };
 
   const handleNetworkSwitch = (network: 'mainnet' | 'testnet') => {
     setSelectedNetwork(network);
-    console.log(`Switched to ${network}`);
+    setIsAutoDetected(false); // Clear auto-detected flag when user manually switches
+    console.log(`Manually switched to ${network}`);
   };
 
   useEffect(() => {
@@ -63,6 +80,19 @@ const CreateWallet = () => {
     }
     init()
   }, [walletData])
+
+  // Auto-detect network based on connected wallet address
+  useEffect(() => {
+    if (isWalletConnected && walletData?.addresses?.stx && walletData.addresses.stx.length > 0) {
+      const address = walletData.addresses.stx[0].address;
+      const config = getClientConfig(address);
+      setSelectedNetwork(config.network as 'mainnet' | 'testnet');
+      setIsAutoDetected(true);
+      console.log(`Auto-detected network: ${config.network} for address: ${address}`);
+    } else {
+      setIsAutoDetected(false);
+    }
+  }, [isWalletConnected, walletData]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -76,38 +106,29 @@ const CreateWallet = () => {
             </Link>
 
             <div className="flex items-center space-x-4">
-              {/* Connected Wallet Profile Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SecondaryButton size="sm" >
-                    <User className="mr-2 h-4 w-4" />
-                    <span className="hidden lg:inline">{getConnectedWalletAddress()}</span>
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </SecondaryButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700 text-white">
-                  <DropdownMenuLabel>Connected Wallet</DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-slate-700" />
-                  <DropdownMenuItem className="hover:bg-slate-700 focus:bg-slate-700" asChild>
-                    <Link to="/wallet-selector">
-                      <Wallet className="mr-2 h-4 w-4" />
-                      Switch Wallet
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
               {/* Network Switcher */}
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild disabled>
                   <SecondaryButton size="sm">
                     <Globe className="mr-2 h-4 w-4" />
-                    <span className="hidden lg:inline">{selectedNetwork}</span>
+                    <span className="hidden lg:inline">
+                      {selectedNetwork}
+                      {isAutoDetected && (
+                        <span className="ml-1 text-xs text-green-400">(auto)</span>
+                      )}
+                    </span>
                     <ChevronDown className="ml-2 h-4 w-4" />
                   </SecondaryButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-48 bg-slate-800 border-slate-700 text-white">
-                  <DropdownMenuLabel>Select Network</DropdownMenuLabel>
+                  <DropdownMenuLabel>
+                    Select Network
+                    {isAutoDetected && (
+                      <div className="text-xs text-green-400 font-normal mt-1">
+                        Auto-detected from wallet
+                      </div>
+                    )}
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-slate-700" />
                   <DropdownMenuItem
                     className="hover:bg-slate-700 focus:bg-slate-700"
@@ -131,6 +152,44 @@ const CreateWallet = () => {
                       )}
                     </div>
                   </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* Connected Wallet Profile Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SecondaryButton size="sm" >
+                    <User className="mr-2 h-4 w-4" />
+                    <span className="hidden lg:inline">{getConnectedWalletAddress()}</span>
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </SecondaryButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700 text-white">
+                  {isWalletConnected ? (
+                    <>
+                      <DropdownMenuLabel>Connected Wallet</DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-slate-700" />
+                      <DropdownMenuItem className="hover:bg-slate-700 focus:bg-slate-700" asChild>
+                        <Link to="/wallet-selector">
+                          <Wallet className="mr-2 h-4 w-4" />
+                          Switch Wallet
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuLabel>Wallet Not Connected</DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-slate-700" />
+                      <DropdownMenuItem
+                        className="hover:bg-slate-700 focus:bg-slate-700"
+                        onClick={connectWallet}
+                        disabled={isConnecting}
+                      >
+                        <Wallet className="mr-2 h-4 w-4" />
+                        {isConnecting ? "Connecting..." : "Connect Wallet"}
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -178,22 +237,66 @@ const CreateWallet = () => {
                   />
                 </div>
 
-                <div className="pt-4">
-                  <PrimaryButton
-                    onClick={handleCreateWallet}
-                    disabled={isCreating || !selectedContract}
-                    className="w-full"
-                  >
-                    {isCreating ? (
-                      "Creating Wallet..."
-                    ) : (
-                      <>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Create Smart Wallet
-                      </>
-                    )}
-                  </PrimaryButton>
-                </div>
+                {error && (
+                  <div className="pt-4">
+                    <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-3">
+                      <p className="text-red-400 text-sm">
+                        <strong>Deployment Error:</strong> {error}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!isWalletConnected && (
+                  <div className="pt-4">
+                    <div className="bg-yellow-900/20 border border-yellow-500/50 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-yellow-400 text-sm font-medium">
+                            Wallet Not Connected
+                          </p>
+                          <p className="text-yellow-300 text-xs mt-1">
+                            Connect your wallet to deploy smart contracts
+                          </p>
+                        </div>
+                        <Wallet className="h-6 w-6 text-yellow-400" />
+                      </div>
+                    </div>
+                    <PrimaryButton
+                      onClick={connectWallet}
+                      disabled={isConnecting}
+                      className="w-full"
+                    >
+                      {isConnecting ? (
+                        "Connecting..."
+                      ) : (
+                        <>
+                          <Wallet className="mr-2 h-4 w-4" />
+                          Connect Wallet
+                        </>
+                      )}
+                    </PrimaryButton>
+                  </div>
+                )}
+
+                {isWalletConnected && (
+                  <div className="pt-4">
+                    <PrimaryButton
+                      onClick={handleCreateWallet}
+                      disabled={isCreating || isLoading || !selectedContract}
+                      className="w-full"
+                    >
+                      {isCreating || isLoading ? (
+                        "Creating Wallet..."
+                      ) : (
+                        <>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create Smart Wallet
+                        </>
+                      )}
+                    </PrimaryButton>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

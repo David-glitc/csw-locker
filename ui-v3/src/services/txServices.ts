@@ -1,6 +1,6 @@
 import { getClientConfig } from "@/utils/chain-config";
 import { formatDecimals } from "@/utils/numbers";
-import { request } from "@stacks/connect";
+import { isConnected, request } from "@stacks/connect";
 import { CallContractParams, DeployContractParams, TransactionResult, TransferStxParams } from "@stacks/connect/dist/types/methods";
 import { Cl, cvToValue, fetchCallReadOnlyFunction, Pc, serializeCV } from '@stacks/transactions'
 import { hexToBytes } from '@noble/hashes/utils';
@@ -79,9 +79,13 @@ export class TxServices {
     }
     // Handles contract deploys
     async deployContract(params: DeployContractParams) {
-        await request('stx_deployContract', params)
-            .then((tx) => tx)
-            .catch((e) => { /* Handle error silently */ })
+        if (isConnected()) {
+            await request('stx_deployContract', params)
+                .then((tx) => tx)
+                .catch((e) => { /* Handle error silently */ })
+        } else {
+            throw new Error("Wallet not connected")
+        }
     }
 
     async sendTransaction(
