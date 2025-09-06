@@ -113,7 +113,7 @@ export class TxServices {
                     postConditions: txConditions
                 }
             } else {
-                txConditions = [Pc.principal(params.from).willSendLte(1).ft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName)]
+                txConditions = [Pc.principal(params.from).willSendLte(params.amount).ft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName)]
                 txOption = {
                     contract: `${cswAddress}.${cswName}`,
                     functionName: "sip010-transfer",
@@ -122,6 +122,7 @@ export class TxServices {
                 }
             }
         }
+        console.log({ txOption, params })
         const txData = await request("stx_callContract", txOption)
         return txData
     }
@@ -175,13 +176,13 @@ export class TxServices {
         const [assetAddress, assetName] = params.contractAddress.split("::")
         const [assetContract, assetContractName] = assetAddress.split(".")
         let txOption: CallContractParams | TransferStxParams, txConditions = [];
-        const txAmount = (+params.amount * Math.pow(10, params.decimal))
+        const txAmount = +params.decimal > 0 ? (+params.amount * Math.pow(10, params.decimal)) : +params.amount
 
         if (params.assetType === "nft") {
             txConditions = [Pc.principal(params.from).willSendAsset().nft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName, Cl.uint(params.tokenId))]
             txOption = {
                 contract: `${assetContract}.${assetContractName}`,
-                functionName: "sip009-transfer",
+                functionName: "transfer",
                 functionArgs: [Cl.uint(params.tokenId), Cl.principal(params.to), Cl.contractPrincipal(assetAddress.split('.')[0], assetAddress.split('.')[1])],
                 postConditions: txConditions
             }
@@ -200,13 +201,13 @@ export class TxServices {
                 txConditions = [Pc.principal(params.from).willSendLte(txAmount).ft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName)]
                 txOption = {
                     contract: `${assetContract}.${assetContractName}`,
-                    functionName: "sip010-transfer",
-                    functionArgs: [Cl.uint(txAmount), Cl.principal(params.to), Cl.none(), Cl.contractPrincipal(assetAddress.split('.')[0], assetAddress.split('.')[1])],
+                    functionName: "transfer",
+                    functionArgs: [Cl.uint(txAmount), Cl.principal(params.from), Cl.principal(params.to), Cl.none()],
                     postConditions: txConditions
                 }
             }
         }
-
+        console.log({ txOption, params })
         const data = await request(params.asset === 'stx' ? "stx_transferStx" : "stx_callContract", txOption)
         return { txid: data.txid };
     }

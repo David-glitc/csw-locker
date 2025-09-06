@@ -4,7 +4,6 @@ import NFTSelectionStep from "@/components/send/NFTSelectionStep";
 import RecipientSelectionStep from "@/components/send/RecipientSelectionStep";
 import TransactionSummaryStep from "@/components/send/TransactionSummaryStep";
 import PrimaryButton from "@/components/ui/primary-button";
-import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "../ui/toaster";
 import { SmartWallet } from "@/services/interfaces";
 

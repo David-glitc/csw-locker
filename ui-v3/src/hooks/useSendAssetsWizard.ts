@@ -18,7 +18,7 @@ export const useSendAssetsWizard = () => {
    const [assetType, setAssetType] = useState<"ft" | "nft">("ft");
    const [tokenId, setTokenId] = useState("");
    const [contractAddress, setContractAddress] = useState("");
-   const [decimal, setDecimal] = useState<number>(6);
+   const [decimal, setDecimal] = useState<number>(0);
    const [recipients, setRecipients] = useState<Recipient[]>([]);
    const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
 
@@ -32,7 +32,7 @@ export const useSendAssetsWizard = () => {
       try {
          const frequencyData = RecipientStorageService.getRecipientFrequency();
          const removedRecipients = RecipientStorageService.getRemovedRecipients();
-         
+
          return Object.entries(frequencyData)
             .filter(([address]) => !removedRecipients.includes(address))
             .map(([address, data]) => ({
@@ -57,7 +57,7 @@ export const useSendAssetsWizard = () => {
          const diffMins = Math.floor(diffMs / (1000 * 60));
          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-         
+
          if (diffMins < 60) {
             return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
          } else if (diffHours < 24) {
@@ -76,16 +76,16 @@ export const useSendAssetsWizard = () => {
          const recentRecipients = getRecentRecipientsFromStorage();
          setRecipients(recentRecipients);
       };
-      
+
       fetchRecipients();
-      
+
       // Listen for storage changes to update recipients list
       const handleStorageChange = () => {
          fetchRecipients();
       };
-      
+
       window.addEventListener('storage', handleStorageChange);
-      
+
       return () => {
          window.removeEventListener('storage', handleStorageChange);
       };
@@ -97,7 +97,7 @@ export const useSendAssetsWizard = () => {
       setAmount("");
       setTokenId("");
       setContractAddress("");
-      setDecimal(6); // Reset to default decimal
+      setDecimal(0); // Reset to default decimal
    };
 
    const resetForm = () => {
@@ -107,7 +107,7 @@ export const useSendAssetsWizard = () => {
       setAsset("");
       setTokenId("");
       setContractAddress("");
-      setDecimal(6);
+      setDecimal(0);
    };
 
    const handleRemoveRecipient = (address: string) => {
@@ -139,7 +139,6 @@ export const useSendAssetsWizard = () => {
 
    const handleSendTransaction = async () => {
       if (!selectedWallet) return;
-      console.log("Sending transaction:", { amount, decimal })
       const transactionParams: TransactionParams = {
          from: walletId,
          to: recipient,
