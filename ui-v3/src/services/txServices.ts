@@ -96,7 +96,7 @@ export class TxServices {
         let txOption: CallContractParams, txConditions = [];
 
         if (params.assetType === "nft") {
-            txConditions = [Pc.principal(params.from).willSendAsset().nft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName, Cl.uint(params.tokenId))]
+            txConditions = [Pc.principal(params.from).willSendAsset().nft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, params?.asset?.split('::')[1], Cl.uint(params.tokenId))]
             txOption = {
                 contract: `${cswAddress}.${cswName}`,
                 functionName: "sip009-transfer",

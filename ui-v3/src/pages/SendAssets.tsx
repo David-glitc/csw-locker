@@ -41,8 +41,8 @@ const SendAssets = () => {
                   contract.
                </p>
                {selectedWallet && (
-                  <p className="text-sm text-purple-300 mt-2">
-                     From: {selectedWallet.address}
+                  <p className="text-sm text-purple-300 mt-2 break-words">
+                     From: <span className="font-mono text-xs break-all">{selectedWallet.address}</span>
                   </p>
                )}
             </div>
