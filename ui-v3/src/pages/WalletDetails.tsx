@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useTxServices } from "@/hooks/useTxServices";
 
 type WalletInfo = {
   smart_contract?: {
@@ -34,7 +35,7 @@ type WalletInfo = {
 const WalletDetails = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
   const [searchParams] = useSearchParams();
-  const { addAdmin, transferOwnership } = useBlockchainService();
+  const { addAdmin, transferOwnership } = useTxServices()
   const { toast } = useToast();
 
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
@@ -90,7 +91,7 @@ const WalletDetails = () => {
         ...info,
         smart_contract: info.smart_contract,
         owner: contractOwner,
-        balance: stxBalance.actual_balance ?? "-",
+        balance: stxBalance.balance ?? "-",
         block_time_iso: info.block_time_iso,
       });
       setOwner(contractOwner);
@@ -181,33 +182,40 @@ const WalletDetails = () => {
     <WalletLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Wallet Details</h1>
-          <p className="text-slate-400">
-            Manage your smart wallet configuration and extensions.
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Wallet Details</h1>
+          <p className="text-slate-400 text-sm sm:text-base">
+            <span className="hidden sm:inline">Manage your smart wallet configuration and extensions.</span>
+            <span className="sm:hidden">Manage wallet configuration and extensions.</span>
           </p>
         </div>
 
         {/* Wallet Information */}
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-white flex items-center">
-              <Wallet className="mr-2 h-5 w-5 text-purple-400" />
-              {
-                /* {walletInfo?.smart_contract?.contract_id || walletId || */
+            <CardTitle className="text-white flex items-center text-lg sm:text-xl">
+              <Wallet className="mr-2 h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
+              <span className="hidden sm:inline">
+                {/* {walletInfo?.smart_contract?.contract_id || walletId || */}
                 "Personal Smart Wallet"
-              }
+              </span>
+              <span className="sm:hidden">Smart Wallet</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-slate-300 text-sm">Contract ID</label>
-                <div className="flex items-center">
-                  <div className="text-white font-mono text-sm bg-slate-700/50 p-2 rounded mt-1 flex-1">
-                    {walletInfo?.smart_contract?.contract_id || walletId}
+                <label className="text-slate-300 text-xs sm:text-sm">Contract ID</label>
+                <div className="flex items-center mt-1">
+                  <div className="text-white font-mono text-xs sm:text-sm bg-slate-700/50 p-2 rounded flex-1 min-w-0">
+                    <span className="block sm:hidden break-all">
+                      {walletInfo?.smart_contract?.contract_id || walletId}
+                    </span>
+                    <span className="hidden sm:block">
+                      {walletInfo?.smart_contract?.contract_id || walletId}
+                    </span>
                   </div>
                   <button
-                    className="ml-2 p-1 rounded hover:bg-slate-600 transition-colors"
+                    className="ml-2 p-1 rounded hover:bg-slate-600 transition-colors flex-shrink-0"
                     onClick={() =>
                       handleCopy(
                         walletInfo?.smart_contract?.contract_id ||
@@ -221,22 +229,27 @@ const WalletDetails = () => {
                     {copiedField === "contractId" ? (
                       <Check
                         className="text-green-400 animate-pulse"
-                        size={18}
+                        size={16}
                       />
                     ) : (
-                      <Copy className="text-slate-400" size={18} />
+                      <Copy className="text-slate-400" size={16} />
                     )}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="text-slate-300 text-sm">Owner</label>
-                <div className="flex items-center">
-                  <div className="text-white font-mono text-sm bg-slate-700/50 p-2 rounded mt-1 flex-1">
-                    {walletInfo?.owner || owner}
+                <label className="text-slate-300 text-xs sm:text-sm">Owner</label>
+                <div className="flex items-center mt-1">
+                  <div className="text-white font-mono text-xs sm:text-sm bg-slate-700/50 p-2 rounded flex-1 min-w-0">
+                    <span className="block sm:hidden break-all">
+                      {walletInfo?.owner || owner}
+                    </span>
+                    <span className="hidden sm:block">
+                      {walletInfo?.owner || owner}
+                    </span>
                   </div>
                   <button
-                    className="ml-2 p-1 rounded hover:bg-slate-600 transition-colors"
+                    className="ml-2 p-1 rounded hover:bg-slate-600 transition-colors flex-shrink-0"
                     onClick={() =>
                       handleCopy(walletInfo?.owner || owner || "", "owner")
                     }
@@ -245,25 +258,25 @@ const WalletDetails = () => {
                     {copiedField === "owner" ? (
                       <Check
                         className="text-green-400 animate-pulse"
-                        size={18}
+                        size={16}
                       />
                     ) : (
-                      <Copy className="text-slate-400" size={18} />
+                      <Copy className="text-slate-400" size={16} />
                     )}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="text-slate-300 text-sm">Balance</label>
-                <div className="text-white font-semibold bg-slate-700/50 p-2 rounded mt-1">
+                <label className="text-slate-300 text-xs sm:text-sm">Balance</label>
+                <div className="text-white font-semibold bg-slate-700/50 p-2 rounded mt-1 text-sm sm:text-base">
                   {walletInfo && walletInfo.balance !== undefined
                     ? `${formatNumber(Number(walletInfo.balance), 2)} STX`
                     : "-"}
                 </div>
               </div>
               <div>
-                <label className="text-slate-300 text-sm">Created</label>
-                <div className="text-white bg-slate-700/50 p-2 rounded mt-1">
+                <label className="text-slate-300 text-xs sm:text-sm">Created</label>
+                <div className="text-white bg-slate-700/50 p-2 rounded mt-1 text-xs sm:text-sm">
                   {walletInfo?.block_time_iso
                     ? new Date(walletInfo.block_time_iso).toLocaleString()
                     : "-"}
@@ -273,13 +286,14 @@ const WalletDetails = () => {
           </CardContent>
         </Card>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Active Extensions */}
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white flex items-center">
-                <Settings className="mr-2 h-5 w-5 text-purple-400" />
-                Active Extensions
+              <CardTitle className="text-white flex items-center text-lg sm:text-xl">
+                <Settings className="mr-2 h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
+                <span className="hidden sm:inline">Active Extensions</span>
+                <span className="sm:hidden">Active</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -295,14 +309,14 @@ const WalletDetails = () => {
                       key={extension.id}
                       className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg"
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                        <span className="text-white font-medium">
+                      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                        <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
+                        <span className="text-white font-medium text-sm sm:text-base truncate">
                           {extension.name}
                         </span>
                         <Badge
                           variant="secondary"
-                          className="bg-green-600/20 text-green-300"
+                          className="bg-green-600/20 text-green-300 text-xs flex-shrink-0"
                         >
                           {extension.status}
                         </Badge>
@@ -311,7 +325,7 @@ const WalletDetails = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveExtension(extension.id)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-600/20"
+                        className="text-red-400 hover:text-red-300 hover:bg-red-600/20 flex-shrink-0 ml-2"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -325,9 +339,13 @@ const WalletDetails = () => {
           {/* Available Extensions */}
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">Available Extensions</CardTitle>
-              <p className="text-slate-400 text-sm">
-                Add new functionality to your wallet
+              <CardTitle className="text-white text-lg sm:text-xl">
+                <span className="hidden sm:inline">Available Extensions</span>
+                <span className="sm:hidden">Available</span>
+              </CardTitle>
+              <p className="text-slate-400 text-xs sm:text-sm">
+                <span className="hidden sm:inline">Add new functionality to your wallet</span>
+                <span className="sm:hidden">Add new functionality</span>
               </p>
             </CardHeader>
             <CardContent>
@@ -342,17 +360,18 @@ const WalletDetails = () => {
                       key={extension.id}
                       className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg"
                     >
-                      <div>
-                        <div className="text-white font-medium">
+                      <div className="min-w-0 flex-1 mr-3">
+                        <div className="text-white font-medium text-sm sm:text-base truncate">
                           {extension.name}
                         </div>
-                        <div className="text-slate-400 text-sm">
+                        <div className="text-slate-400 text-xs sm:text-sm" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           {extension.description}
                         </div>
                       </div>
                       <PrimaryButton
                         size="sm"
                         onClick={() => handleAddExtension(extension.id)}
+                        className="flex-shrink-0"
                       >
                         <Plus className="h-4 w-4" />
                       </PrimaryButton>

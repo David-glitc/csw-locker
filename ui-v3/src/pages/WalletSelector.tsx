@@ -142,25 +142,28 @@ const WalletSelector = () => {
       />
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                My Smart Wallets
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+                <span className="hidden sm:inline">My Smart Wallets</span>
+                <span className="sm:hidden">Smart Wallets</span>
               </h1>
-              <p className="text-slate-400">
-                Select a smart wallet to manage or create a new one.
+              <p className="text-slate-400 text-sm sm:text-base">
+                <span className="hidden sm:inline">Select a smart wallet to manage or create a new one.</span>
+                <span className="sm:hidden">Manage or create smart wallets.</span>
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <AddExistingWalletDialog
                 onWalletAdded={handleWalletAdded}
                 isDemoMode={isDemoMode}
               />
-              <PrimaryButton asChild>
-                <Link to="/create-wallet">
+              <PrimaryButton asChild className="w-full sm:w-auto">
+                <Link to="/create-wallet" className="flex items-center justify-center">
                   <Plus className="mr-2 h-4 w-4" />
-                  Create New Wallet
+                  <span className="hidden sm:inline">Create New Wallet</span>
+                  <span className="sm:hidden">Create Wallet</span>
                 </Link>
               </PrimaryButton>
             </div>
@@ -177,7 +180,7 @@ const WalletSelector = () => {
               ? (<EmptyWalletState />)
               : (
                 <>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     {walletsToShow
                       .filter(wallet => !wallet.ext)
                       .map((wallet, index) => (
@@ -192,17 +195,19 @@ const WalletSelector = () => {
                   {/* Extension Contracts Section */}
                   {!isDemoMode && (
                     <div className="mt-8">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
                         <div>
-                          <h2 className="text-2xl font-bold text-white mb-2">
-                            Extension Contracts
+                          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                            <span className="hidden sm:inline">Extension Contracts</span>
+                            <span className="sm:hidden">Extensions</span>
                           </h2>
-                          <p className="text-slate-400">
-                            Deployed extension contracts for enhanced functionality.
+                          <p className="text-slate-400 text-sm sm:text-base">
+                            <span className="hidden sm:inline">Deployed extension contracts for enhanced functionality.</span>
+                            <span className="sm:hidden">Enhanced functionality contracts.</span>
                           </p>
                         </div>
                         {deployedContractsLoading && (
-                          <div className="text-slate-400">Loading extensions...</div>
+                          <div className="text-slate-400 text-sm">Loading extensions...</div>
                         )}
                       </div>
 
@@ -217,34 +222,38 @@ const WalletSelector = () => {
                           </div>
                         )
                         : (
-                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {deployedContracts
                               .filter(contract => contract.ext)
                               .map((contract, index) => (
                                 <div key={`${contract.name}-${index}`} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
                                   <div className="flex items-center gap-3 mb-3">
-                                    <span className="text-2xl">{(contract as any).icon || '📦'}</span>
-                                    <div>
-                                      <h3 className="text-white font-semibold">{contract.label}</h3>
-                                      <p className="text-slate-400 text-sm">{contract.name}</p>
+                                    <span className="text-xl sm:text-2xl">{(contract as any).icon || '📦'}</span>
+                                    <div className="min-w-0 flex-1">
+                                      <h3 className="text-white font-semibold text-sm sm:text-base truncate">{contract.label}</h3>
+                                      <p className="text-slate-400 text-xs sm:text-sm truncate">{contract.name}</p>
                                     </div>
                                   </div>
-                                  <p className="text-slate-300 text-sm mb-3">{(contract as any).description || 'Extension contract for enhanced functionality'}</p>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-green-400 text-sm font-medium">
-                                      ✓ Deployed
-                                    </span>
-                                    <span className="text-green-400 text-sm font-medium">
-                                      {contract.stxHolding} STX
-                                    </span>
-                                    <span className="text-green-400 text-sm font-medium">
-                                      {contract.btcHolding} sBTC
-                                    </span>
-                                    {contract.extensions.length > 0 && (
-                                      <span className="text-blue-400 text-xs">
-                                        {contract.extensions.length} extensions
+                                  <p className="text-slate-300 text-xs sm:text-sm mb-3 line-clamp-2">{(contract as any).description || 'Extension contract for enhanced functionality'}</p>
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-green-400 text-xs sm:text-sm font-medium">
+                                        ✓ Deployed
                                       </span>
-                                    )}
+                                    </div>
+                                    <div className="flex items-center justify-between sm:justify-end gap-2 text-xs sm:text-sm">
+                                      <span className="text-green-400 font-medium">
+                                        {contract.stxHolding} STX
+                                      </span>
+                                      <span className="text-green-400 font-medium">
+                                        {contract.btcHolding} sBTC
+                                      </span>
+                                      {contract.extensions.length > 0 && (
+                                        <span className="text-blue-400 text-xs">
+                                          {contract.extensions.length} ext
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               ))}

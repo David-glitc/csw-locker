@@ -4,7 +4,8 @@ import { Activity, ArrowUpRight, ArrowDownLeft, TrendingUp, Loader2 } from "luci
 import { Link, useParams } from "react-router-dom";
 import SecondaryButton from "../ui/secondary-button";
 import { useCallback, useEffect, useState } from "react";
-import { TxInfo, TransactionDataService } from "@/services/transactionDataService";
+import { TransactionDataService } from "@/services/transactionDataService";
+import { TxInfo } from "@/services/interfaces";
 import { formatAmount } from "@/lib/txFormatUtils";
 import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import { Skeleton } from "@/components/ui/skeleton";
