@@ -67,7 +67,7 @@ const TokenSelectionStep = ({
                   symbol: existingMetadata?.symbol || ft.asset_identifier.split("::")[1] || "UNK",
                   contract: ft.asset_identifier.split("::")[0],
                   icon: existingMetadata?.image_thumbnail_uri || existingMetadata?.image_uri || "",
-                  decimal: existingMetadata?.decimals || 0
+                  decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : existingMetadata?.decimals || 0
                });
             } else {
                // Fetch metadata with delay
@@ -90,7 +90,7 @@ const TokenSelectionStep = ({
                      symbol: tokenMetadata?.symbol || ft.asset_identifier.split("::")[1] || "UNK",
                      contract: ft.asset_identifier.split("::")[0],
                      icon: tokenMetadata?.image_thumbnail_uri || tokenMetadata?.image_uri || "",
-                     decimal: tokenMetadata?.decimals || 0
+                     decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : existingMetadata?.decimals || 0
                   });
                } catch (error) {
                   console.warn(`Failed to fetch metadata for ${ft.asset_identifier}:`, error);
@@ -101,7 +101,7 @@ const TokenSelectionStep = ({
                      symbol: ft.asset_identifier.split("::")[1] || "UNK",
                      contract: ft.asset_identifier.split("::")[0],
                      icon: "",
-                     decimal: 0
+                     decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : existingMetadata?.decimals || 0
                   });
                }
             }

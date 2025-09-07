@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Send, Image } from "lucide-react";
 import PrimaryButton from "@/components/ui/primary-button";

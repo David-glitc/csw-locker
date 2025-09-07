@@ -300,7 +300,7 @@ export class AccountBalanceService {
     try {
       // Join asset identifiers with comma for the API
       const assetIdentifiersParam = assetIdentifiers.join(',');
-      
+
       const response = await axios.get(
         `${apiConfig.baseUrl}/extended/v1/tokens/nft/holdings?principal=${principal}&asset_identifiers=${assetIdentifiersParam}&offset=${offset}&limit=${limit}`,
         {
@@ -335,7 +335,7 @@ export class AccountBalanceService {
 
     for (let i = 0; i < nftItems.length; i++) {
       const item = nftItems[i];
-      
+
       // Add delay between requests to avoid rate limiting
       if (i > 0) {
         await this.delay(this.REQUEST_DELAY_MS);
@@ -346,7 +346,7 @@ export class AccountBalanceService {
         const principal = item.asset_identifier?.split("::")[0];
         const tokenId = item.value?.repr?.replace("u", "");
         console.log('fetching nft items metadata for', { metadata: item.asset_identifier, principal: principal, tokenId: tokenId });
-        
+
         if (!principal || !tokenId) {
           console.warn('Missing principal or tokenId for NFT item:', item);
           itemsWithMetadata.push({
@@ -359,7 +359,7 @@ export class AccountBalanceService {
         // Check cache first
         const cacheKey = `nft_item_${principal}_${tokenId}`;
         const cachedData = this.getCachedMetadata(cacheKey);
-        
+
         if (cachedData) {
           itemsWithMetadata.push({
             ...item,
@@ -382,7 +382,7 @@ export class AccountBalanceService {
 
         // Cache the result
         this.setCachedMetadata(cacheKey, response.data);
-        
+
         itemsWithMetadata.push({
           ...item,
           metadata: response.data
@@ -421,7 +421,7 @@ export class AccountBalanceService {
       // Extract principal and token ID from the item
       const principal = item.asset_identifier?.split("::")[0];
       const tokenId = item.value?.repr?.replace("u", "");
-      
+
       if (!principal || !tokenId) {
         console.warn('Missing principal or tokenId for NFT item:', item);
         return {
@@ -433,7 +433,7 @@ export class AccountBalanceService {
       // Check cache first
       const cacheKey = `nft_item_${principal}_${tokenId}`;
       const cachedData = this.getCachedMetadata(cacheKey);
-      
+
       if (cachedData) {
         return {
           ...item,
@@ -458,7 +458,7 @@ export class AccountBalanceService {
 
       // Cache the result
       this.setCachedMetadata(cacheKey, response.data);
-      
+
       return {
         ...item,
         metadata: response.data
@@ -741,7 +741,7 @@ export class AccountBalanceService {
     return {
       umicro: ftRes?.balance || "0",
       balance: this.formatDecimals(ftRes?.balance || 0, +tokenMeta?.decimals || 0, false),
-      decimal: tokenMeta?.decimals || 0,
+      decimal: ftRes.asset_identifier === '.stacks' ? 6 : tokenMeta?.decimals || 0,
       name: tokenMeta?.name || ftRes?.asset_identifier?.split("::")[1],
       symbol: tokenMeta?.symbol || ftRes?.asset_identifier?.split("::")[1],
       icon: tokenMeta?.image_thumbnail_uri || tokenMeta?.image_uri || "",

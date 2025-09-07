@@ -161,6 +161,7 @@ const ReceiveAssets = () => {
 
         // Check if metadata already exists
         const existingMetadata = ftMetadata[ft.asset_identifier];
+        console.log({ existingMetadata });
 
         if (existingMetadata) {
           // Use existing metadata
@@ -170,7 +171,7 @@ const ReceiveAssets = () => {
             symbol: existingMetadata?.symbol || ft.asset_identifier.split("::")[1] || "UNK",
             contract: ft.asset_identifier.split("::")[0],
             icon: existingMetadata?.image_thumbnail_uri || existingMetadata?.image_uri || "",
-            decimal: existingMetadata?.decimals || 0
+            decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : existingMetadata?.decimals || 0
           });
         } else {
           // Fetch metadata with delay
@@ -193,7 +194,7 @@ const ReceiveAssets = () => {
               symbol: tokenMetadata?.symbol || ft.asset_identifier.split("::")[1] || "UNK",
               contract: ft.asset_identifier.split("::")[0],
               icon: tokenMetadata?.image_thumbnail_uri || tokenMetadata?.image_uri || "",
-              decimal: tokenMetadata?.decimals || 0
+              decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : tokenMetadata?.decimals || 0
             });
           } catch (error) {
             console.warn(`Failed to fetch metadata for ${ft.asset_identifier}:`, error);
@@ -204,7 +205,7 @@ const ReceiveAssets = () => {
               symbol: ft.asset_identifier.split("::")[1] || "UNK",
               contract: ft.asset_identifier.split("::")[0],
               icon: "",
-              decimal: 0
+              decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : 0
             });
           }
         }
@@ -383,6 +384,8 @@ const ReceiveAssets = () => {
     setShowMaxWarning(false);
   };
 
+  console.log({ selectedToken, processedFtTokens, processedNftTokens });
+
   return (
     <WalletLayout>
       <div className="space-y-6">
@@ -504,33 +507,35 @@ const ReceiveAssets = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between mt-10">
                 Deposit to Smart Wallet
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-1 bg-slate-700/50 p-1 rounded-xl border border-slate-600 hover:border-slate-500 transition-all duration-300">
-                    <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${!isNftMode
+                {!depositSuccess &&
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-1 bg-slate-700/50 p-1 rounded-xl border border-slate-600 hover:border-slate-500 transition-all duration-300">
+                      <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${!isNftMode
                         ? 'bg-green-600/20 text-green-400 border border-green-500/30 shadow-lg shadow-green-500/20'
                         : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
-                      }`}
-                      onClick={() => setIsNftMode(false)}
-                    >
-                      <Coins className="w-4 h-4" />
-                      <span className="text-sm font-medium">FT</span>
-                    </div>
-                    <Switch
-                      checked={isNftMode}
-                      onCheckedChange={setIsNftMode}
-                      className="data-[state=checked]:bg-purple-600 data-[state=unchecked]:bg-slate-600 transition-all duration-300 mx-1"
-                    />
-                    <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${isNftMode
+                        }`}
+                        onClick={() => setIsNftMode(false)}
+                      >
+                        <Coins className="w-4 h-4" />
+                        <span className="text-sm font-medium">FT</span>
+                      </div>
+                      <Switch
+                        checked={isNftMode}
+                        onCheckedChange={setIsNftMode}
+                        className="data-[state=checked]:bg-purple-600 data-[state=unchecked]:bg-slate-600 transition-all duration-300 mx-1"
+                      />
+                      <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${isNftMode
                         ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/20'
                         : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
-                      }`}
-                      onClick={() => setIsNftMode(true)}
-                    >
-                      <Image className="w-4 h-4" />
-                      <span className="text-sm font-medium">NFT</span>
+                        }`}
+                        onClick={() => setIsNftMode(true)}
+                      >
+                        <Image className="w-4 h-4" />
+                        <span className="text-sm font-medium">NFT</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                }
               </DialogTitle>
             </DialogHeader>
             {depositSuccess ? (
