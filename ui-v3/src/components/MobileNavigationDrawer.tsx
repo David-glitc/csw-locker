@@ -23,19 +23,19 @@ interface MobileNavigationDrawerProps {
   walletId?: string;
 }
 
-const MobileNavigationDrawer = ({ 
-  isOpen, 
-  onOpenChange, 
-  currentWallet, 
-  walletId 
+const MobileNavigationDrawer = ({
+  isOpen,
+  onOpenChange,
+  currentWallet,
+  walletId
 }: MobileNavigationDrawerProps) => {
   const location = useLocation();
-  
+
   // Check if stacking extension is active
-  const isStackingActive = currentWallet.extensions?.some(ext => 
+  const isStackingActive = currentWallet.extensions?.some(ext =>
     ext.toLowerCase().includes('stacking') || ext.toLowerCase().includes('stack')
   );
-  
+
   const baseNavItems = [
     { path: `/dashboard/${walletId}`, label: "Dashboard", icon: Wallet },
     { path: `/send/${walletId}`, label: "Send", icon: Send },
@@ -47,12 +47,12 @@ const MobileNavigationDrawer = ({
   ];
 
   // Add stacking item only if extension is active
-  const navItems = isStackingActive 
+  const navItems = isStackingActive
     ? [
-        ...baseNavItems.slice(0, 3), // Dashboard, Send, Receive
-        { path: `/stacking/${walletId}`, label: "Stacking", icon: ArrowUp },
-        ...baseNavItems.slice(3) // Actions, Contract Actions, History, Contract Details
-      ]
+      ...baseNavItems.slice(0, 3), // Dashboard, Send, Receive
+      { path: `/stacking/${walletId}`, label: "Stacking", icon: ArrowUp },
+      ...baseNavItems.slice(3) // Actions, Contract Actions, History, Contract Details
+    ]
     : baseNavItems;
 
   return (
@@ -74,7 +74,7 @@ const MobileNavigationDrawer = ({
             <div className="text-sm text-slate-400">Current Wallet</div>
             <div className="text-white font-medium">{currentWallet.name}</div>
             <div className="text-xs text-slate-400 mt-1 font-mono break-all">
-              {currentWallet.contractId}
+              {`${currentWallet.contractId?.slice(0, 4) ?? ''}...${currentWallet.contractId?.slice(-20) ?? ''}`}
             </div>
           </div>
 
@@ -97,17 +97,16 @@ const MobileNavigationDrawer = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
-              
+
               return (
                 <DrawerClose key={item.path} asChild>
                   <Button
                     asChild
                     variant={isActive ? "secondary" : "ghost"}
-                    className={`w-full justify-start font-medium ${
-                      isActive 
-                        ? "bg-purple-600/30 text-purple-200 border border-purple-600/50" 
+                    className={`w-full justify-start font-medium ${isActive
+                        ? "bg-purple-600/30 text-purple-200 border border-purple-600/50"
                         : "text-slate-200 hover:bg-slate-700/60 hover:text-white"
-                    }`}
+                      }`}
                   >
                     <Link to={item.path}>
                       <Icon className="mr-2 h-4 w-4" />

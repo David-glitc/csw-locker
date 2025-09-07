@@ -26,9 +26,14 @@ const GenericActions = () => {
           <h1 className="text-3xl font-bold text-white mb-2">Extension</h1>
           <p className="text-slate-400">Execute actions from deployed extension contracts using your Smart Wallet.</p>
           {walletId && (
-            <p className="text-sm text-purple-300 mt-2">
-              Wallet: {walletId}
-            </p>
+            <>
+              <p className="text-sm text-purple-300 mt-2 hidden md:block whitespace-nowrap">
+                Wallet: {walletId}
+              </p>
+              <p className="text-sm text-purple-300 mt-2 block md:hidden whitespace-nowrap">
+                Wallet: {`${walletId.slice(0, 4)}...${walletId.slice(-10)}`}
+              </p>
+            </>
           )}
         </div>
 

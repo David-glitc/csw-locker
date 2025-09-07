@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { MenuIcon, Wallet, XIcon } from "lucide-react";
+import { MenuIcon, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import GreenButton from "../ui/green-button";
 import SecondaryButton from "../ui/secondary-button";
 import PrimaryButton from "../ui/primary-button";
 import { useEffect, useState } from "react";
+import MobileMenu from "./MobileMenu";
 
 const Header = () => {
   const { isWalletConnected, connectWallet, disconnectWallet, isConnecting, walletData } = useWalletConnection();
@@ -96,48 +97,15 @@ const Header = () => {
 
           <div className="flex md:hidden items-center space-x-4">
             <SecondaryButton onClick={() => setMobileMenue(!mobileMenue)}>
-              {mobileMenue ? <XIcon /> : <MenuIcon />}
+              <MenuIcon className="h-4 w-4" />
             </SecondaryButton>
           </div>
 
-          {/* Mobile Menu Panel */}
-          {mobileMenue && (
-            <div className="absolute top-16 left-0 w-full bg-white shadow-md z-50 p-4 md:hidden">
-              <nav className="flex flex-col space-y-4">
-                <SecondaryButton
-                  asChild
-                >
-                  <a
-                    href="https://polimartlabs.gitbook.io/smart-wallet/overview/why-smart-wallet"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Docs
-                  </a>
-                </SecondaryButton>
-                {isWalletConnected ? (
-                  <div className="w-full flex flex-col items-center">
-                    <GreenButton asChild >
-                      <Link to="/wallet-selector">My Wallets</Link>
-                    </GreenButton>
-                    <SecondaryButton
-                      onClick={handleWalletAction}
-                      disabled={isConnecting}
-                    >
-                      {getButtonText()}
-                    </SecondaryButton>
-                  </div>
-                ) : (
-                  <PrimaryButton
-                    onClick={handleWalletAction}
-                    disabled={isConnecting}
-                  >
-                    {getButtonText()}
-                  </PrimaryButton>
-                )}
-              </nav>
-            </div>
-          )}
+          {/* Mobile Menu */}
+          <MobileMenu 
+            isOpen={mobileMenue} 
+            onOpenChange={setMobileMenue} 
+          />
 
         </nav>
       </div>

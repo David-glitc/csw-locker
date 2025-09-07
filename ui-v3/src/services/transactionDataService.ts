@@ -17,6 +17,7 @@ interface StacksTransactionEvent {
     tx_type: string;
     block_time_iso: string;
     sender_address: string;
+    nonce?: number;
     contract_call?: {
       function_name: string;
       function_args: Array<{
@@ -54,11 +55,20 @@ interface TransactionCache {
   };
 }
 
+interface SwTxCache {
+  [address: string]: {
+    transactions: TxInfo[];
+    lastFetched: number;
+  };
+}
+
 export class TransactionDataService {
   private cache: TransactionCache = {};
   private readonly CACHE_TTL = 30000; // 30 seconds cache TTL
-  private swTxCache: TransactionCache = {};
+  private swTxCache: SwTxCache = {};
   private readonly SW_TX_CACHE_TTL = 30000; // 30 seconds
+  private lastRequestTime = 0;
+  private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second minimum between requests
 
   private isCacheValid(address: string): boolean {
     const cached = this.cache[address];
@@ -70,6 +80,73 @@ export class TransactionDataService {
     const cached = this.swTxCache[address];
     if (!cached) return false;
     return Date.now() - cached.lastFetched < this.SW_TX_CACHE_TTL;
+  }
+
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+      const delay = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    this.lastRequestTime = Date.now();
+  }
+
+  /**
+   * Retrieves transaction data from Hiro API with rate limiting to avoid CORS errors
+   * @param walletAddress - The wallet address to fetch transactions for
+   * @param offset - The offset for pagination (default: 0)
+   * @returns Promise<StacksTransactionEvent[]> - Array of transaction events
+   * 
+   * @example
+   * ```typescript
+   * const transactionService = new TransactionDataService();
+   * 
+   * // Fetch first 20 transactions
+   * const transactions = await transactionService.fetchTransactionsFromAPI('SP123...', 0);
+   * 
+   * // Fetch next 20 transactions (pagination)
+   * const nextPage = await transactionService.fetchTransactionsFromAPI('SP123...', 20);
+   * ```
+   */
+  async fetchTransactionsFromAPI(
+    walletAddress: string,
+    offset: number = 0
+  ): Promise<StacksTransactionEvent[]> {
+    try {
+      // Enforce rate limiting to avoid CORS errors
+      await this.enforceRateLimit();
+
+      const { api } = getClientConfig(walletAddress);
+      const response = await axios.get<{ results: StacksTransactionEvent[] }>(
+        `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=20&offset=${offset}`,
+        {
+          timeout: 10000, // 10 second timeout
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+
+      if (response?.data?.results) {
+        return response.data.results;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error(`Error fetching transactions for address ${walletAddress}:`, error);
+      
+      // If it's a rate limit error, wait a bit longer before throwing
+      if (axios.isAxiosError(error) && error.response?.status === 429) {
+        console.warn('Rate limit exceeded, waiting 2 seconds before retry...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      throw error;
+    }
   }
 
   private processTransactionData(tx: StacksTransactionEvent): Transaction {
@@ -133,7 +210,7 @@ export class TransactionDataService {
       to: pcSender ?? "",
       amount: pcAssetsAndAmounts[0]?.amount ?? "0",
       asset: pcAssetsAndAmounts[0]?.symbol ?? "STX",
-      assetType: "token",
+      assetType: "ft",
       timestamp: formatDistanceToNow(new Date(txData.block_time_iso)),
       status: normalizedStatus as "pending" | "confirmed" | "failed",
       txHash: txData.tx_id,
@@ -149,33 +226,24 @@ export class TransactionDataService {
     }
 
     try {
-      const { api } = getClientConfig(walletAddress);
-      const response = await axios.get<{ results: StacksTransactionEvent[] }>(
-        `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=20&offset=${offset}`
-      );
+      const results = await this.fetchTransactionsFromAPI(walletAddress, offset);
+      const transactions = results.map((tx) => this.processTransactionData(tx));
 
-      if (response?.data?.results) {
-        const transactions = response.data.results.map((tx) =>
-          this.processTransactionData(tx)
+      if (offset === 0) {
+        this.cache[walletAddress] = {
+          transactions,
+          lastFetched: Date.now(),
+        };
+      } else if (this.cache[walletAddress]) {
+        // Append new transactions to cache if they don't already exist
+        const existingTxs = this.cache[walletAddress].transactions;
+        const newTxs = transactions.filter(
+          (tx) => !existingTxs.some((existing) => existing.id === tx.id)
         );
-
-        if (offset === 0) {
-          this.cache[walletAddress] = {
-            transactions,
-            lastFetched: Date.now(),
-          };
-        } else if (this.cache[walletAddress]) {
-          // Append new transactions to cache if they don't already exist
-          const existingTxs = this.cache[walletAddress].transactions;
-          const newTxs = transactions.filter(
-            (tx) => !existingTxs.some((existing) => existing.id === tx.id)
-          );
-          this.cache[walletAddress].transactions = [...existingTxs, ...newTxs];
-        }
-
-        return transactions;
+        this.cache[walletAddress].transactions = [...existingTxs, ...newTxs];
       }
-      return [];
+
+      return transactions;
     } catch (error) {
       console.error("Error fetching transactions:", error);
       return [];
@@ -250,13 +318,10 @@ export class TransactionDataService {
       );
       return;
     }
-    const { api } = getClientConfig(address);
+    
     try {
-      const res = await axios.get(
-        `${api}/extended/v2/addresses/${address}/transactions?limit=20&offset=${offset}`
-      );
-      if (res?.data?.results) {
-        const { results } = res.data;
+      const results = await this.fetchTransactionsFromAPI(address, offset);
+      if (results) {
         const constructTx = results.map((info: StacksTransactionEvent) => {
           const { stx_sent, stx_received, tx } = info;
           const stxsent = Number(stx_sent);
@@ -327,6 +392,7 @@ export class TransactionDataService {
               sender:
                 stxreceived > 0 ? txSender : stxsent > 0 ? txSender : pcSender,
               stamp: formatDistanceToNow(tx?.block_time_iso),
+              time: tx?.block_time_iso,
               assets: pcAssetsAndAmounts,
               tx: tx?.tx_id,
               tx_status: normalizedStatus,
@@ -359,8 +425,7 @@ export class TransactionDataService {
           };
           setSwTx(() => constructTx);
         } else if (this.swTxCache[address]) {
-          const existingTxs = this.swTxCache[address]
-            .transactions as unknown as TxInfo[];
+          const existingTxs = this.swTxCache[address].transactions;
           const newTxs = (constructTx ?? []).filter(
             (tx: TxInfo) =>
               !existingTxs.some((existing) => existing?.tx === tx.tx)
@@ -384,11 +449,17 @@ export class TransactionDataService {
   async getTransactionCount(walletAddress: string): Promise<number> {
     try {
       const { api } = getClientConfig(walletAddress);
-      const response = await axios.get<{ total: number }>(
+      const response = await axios.get<{ results: StacksTransactionEvent[] }>(
         `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=1`
       );
-      // Hiro API returns total count in response.data.total
-      return response?.data?.total ?? 0;
+      
+      // Get nonce from the first transaction result
+      if (response?.data?.results && response.data.results.length > 0) {
+        const firstTx = response.data.results[0];
+        return firstTx.tx.nonce ?? 0;
+      }
+      
+      return 0;
     } catch (error) {
       console.error("Error fetching transaction count:", error);
       return 0;
