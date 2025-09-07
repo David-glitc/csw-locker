@@ -18,7 +18,6 @@ export const useBlockchainService = () => {
     try {
       return await blockchainService.getTransactionStatus(txHash);
     } catch (error) {
-      console.error('Failed to get transaction status:', error);
       throw error;
     }
   };

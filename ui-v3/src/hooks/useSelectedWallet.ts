@@ -44,7 +44,6 @@ export const useSelectedWallet = () => {
 
                     setSelectedWallet(extendedWallet);
       } catch (error) {
-        console.error('Failed to validate wallet:', error);
         setSelectedWallet(null);
       }
     };

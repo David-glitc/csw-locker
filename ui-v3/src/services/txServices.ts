@@ -1,6 +1,6 @@
 import { getClientConfig } from "@/utils/chain-config";
 import { formatDecimals } from "@/utils/numbers";
-import { request } from "@stacks/connect";
+import { isConnected, request } from "@stacks/connect";
 import { CallContractParams, DeployContractParams, TransactionResult, TransferStxParams } from "@stacks/connect/dist/types/methods";
 import { Cl, cvToValue, fetchCallReadOnlyFunction, Pc, serializeCV } from '@stacks/transactions'
 import { hexToBytes } from '@noble/hashes/utils';
@@ -79,9 +79,13 @@ export class TxServices {
     }
     // Handles contract deploys
     async deployContract(params: DeployContractParams) {
-        await request('stx_deployContract', params)
-            .then((tx) => tx)
-            .catch((e) => { /* Handle error silently */ })
+        if (isConnected()) {
+            await request('stx_deployContract', params)
+                .then((tx) => tx)
+                .catch((e) => { /* Handle error silently */ })
+        } else {
+            throw new Error("Wallet not connected")
+        }
     }
 
     async sendTransaction(
@@ -92,7 +96,7 @@ export class TxServices {
         let txOption: CallContractParams, txConditions = [];
 
         if (params.assetType === "nft") {
-            txConditions = [Pc.principal(params.from).willSendAsset().nft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName, Cl.uint(params.tokenId))]
+            txConditions = [Pc.principal(params.from).willSendAsset().nft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, params?.asset?.split('::')[1], Cl.uint(params.tokenId))]
             txOption = {
                 contract: `${cswAddress}.${cswName}`,
                 functionName: "sip009-transfer",
@@ -109,7 +113,7 @@ export class TxServices {
                     postConditions: txConditions
                 }
             } else {
-                txConditions = [Pc.principal(params.from).willSendLte(1).ft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName)]
+                txConditions = [Pc.principal(params.from).willSendLte(params.amount).ft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName)]
                 txOption = {
                     contract: `${cswAddress}.${cswName}`,
                     functionName: "sip010-transfer",
@@ -171,13 +175,13 @@ export class TxServices {
         const [assetAddress, assetName] = params.contractAddress.split("::")
         const [assetContract, assetContractName] = assetAddress.split(".")
         let txOption: CallContractParams | TransferStxParams, txConditions = [];
-        const txAmount = (+params.amount * Math.pow(10, params.decimal))
+        const txAmount = +params.decimal > 0 ? (+params.amount * Math.pow(10, params.decimal)) : +params.amount
 
         if (params.assetType === "nft") {
             txConditions = [Pc.principal(params.from).willSendAsset().nft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName, Cl.uint(params.tokenId))]
             txOption = {
                 contract: `${assetContract}.${assetContractName}`,
-                functionName: "sip009-transfer",
+                functionName: "transfer",
                 functionArgs: [Cl.uint(params.tokenId), Cl.principal(params.to), Cl.contractPrincipal(assetAddress.split('.')[0], assetAddress.split('.')[1])],
                 postConditions: txConditions
             }
@@ -196,13 +200,12 @@ export class TxServices {
                 txConditions = [Pc.principal(params.from).willSendLte(txAmount).ft(`${assetAddress.split('.')[0]}.${assetAddress.split('.')[1]}`, assetName)]
                 txOption = {
                     contract: `${assetContract}.${assetContractName}`,
-                    functionName: "sip010-transfer",
-                    functionArgs: [Cl.uint(txAmount), Cl.principal(params.to), Cl.none(), Cl.contractPrincipal(assetAddress.split('.')[0], assetAddress.split('.')[1])],
+                    functionName: "transfer",
+                    functionArgs: [Cl.uint(txAmount), Cl.principal(params.from), Cl.principal(params.to), Cl.none()],
                     postConditions: txConditions
                 }
             }
         }
-
         const data = await request(params.asset === 'stx' ? "stx_transferStx" : "stx_callContract", txOption)
         return { txid: data.txid };
     }

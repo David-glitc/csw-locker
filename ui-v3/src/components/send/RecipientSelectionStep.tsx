@@ -14,20 +14,20 @@ interface RecipientSelectionStepProps {
   onBack: () => void;
 }
 
-const RecipientSelectionStep = ({ 
-  recipient, 
-  recipients, 
-  onRecipientChange, 
+const RecipientSelectionStep = ({
+  recipient,
+  recipients,
+  onRecipientChange,
   onRemoveRecipient,
-  onNext, 
-  onBack 
+  onNext,
+  onBack
 }: RecipientSelectionStepProps) => {
   const isValid = recipient.trim() !== '';
 
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-white">Select Recipient</h3>
-      
+
       <div className="space-y-2">
         <Label htmlFor="recipient" className="text-slate-300">Recipient Address</Label>
         <Input
@@ -46,22 +46,23 @@ const RecipientSelectionStep = ({
             {recipients.map((recentRecipient, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg cursor-pointer hover:bg-slate-700/50">
                 <div>
-                  <div className="text-white text-sm">{recentRecipient.address}</div>
+                  <div className="hidden md:block text-white text-sm">{recentRecipient.address}</div>
+                  <div className="block md:hidden text-white text-sm">{`${recentRecipient.address.slice(0, 6)}...${recentRecipient.address.slice(-4)}`}</div>
                   <div className="text-slate-400 text-xs">Last sent: {recentRecipient.lastSent} • {recentRecipient.frequency} transactions</div>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="text-purple-400 hover:text-purple-300 hover:bg-purple-600/20" 
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-purple-400 hover:text-purple-300 hover:bg-purple-600/20"
                     onClick={() => onRecipientChange(recentRecipient.address)}
                   >
                     Use
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="text-red-400 hover:text-red-300 hover:bg-red-600/20" 
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-400 hover:text-red-300 hover:bg-red-600/20"
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent triggering parent click
                       if (onRemoveRecipient) {
@@ -79,13 +80,13 @@ const RecipientSelectionStep = ({
       )}
 
       <div className="flex gap-3">
-        <SecondaryButton 
+        <SecondaryButton
           className="flex-1"
           onClick={onBack}
         >
           Back
         </SecondaryButton>
-        <PrimaryButton 
+        <PrimaryButton
           className="flex-1"
           disabled={!isValid}
           onClick={onNext}

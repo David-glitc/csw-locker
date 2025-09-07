@@ -54,7 +54,6 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
               btcHolding: balances?.sbtc?.balance ? Number(balances.sbtc.balance) : 0,
             };
           } catch (error) {
-            console.error(`Failed to fetch balance for contract ${(contract as any).contractId || contract.name}:`, error);
             // Return contract with original values if balance fetch fails
             return contract;
           }
@@ -66,7 +65,6 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch wallet data';
       setError(errorMessage);
-      console.error('Error fetching wallet data:', err);
 
       // Reset data on error
       setDeployedContracts([]);
@@ -93,7 +91,6 @@ export const useSmartWalletContractService = (walletAddress?: string) => {
       const result = await smartWalletService.validateSmartContract(contractAddress);
       return result;
     } catch (error) {
-      console.error('Contract validation failed:', error);
       return null;
     }
   }, []);

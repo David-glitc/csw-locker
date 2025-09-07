@@ -40,6 +40,14 @@ export class AccountBalanceService {
     },
   };
 
+  // Cache for metadata to avoid duplicate requests
+  private metadataCache = new Map<string, any>();
+
+  // Rate limiting configuration
+  private readonly MAX_CONCURRENT_REQUESTS = 3;
+  private readonly REQUEST_DELAY_MS = 200; // 200ms delay between requests
+  private activeRequests = 0;
+
   /**
    * Constructor to initialize the service with custom configuration
    * @param config - Optional configuration to override defaults
@@ -48,6 +56,43 @@ export class AccountBalanceService {
     if (config) {
       this.defaultConfig = { ...this.defaultConfig, ...config };
     }
+  }
+
+  /**
+   * Rate limiting helper - wait if too many requests are active
+   */
+  private async waitForRateLimit(): Promise<void> {
+    while (this.activeRequests >= this.MAX_CONCURRENT_REQUESTS) {
+      await new Promise(resolve => setTimeout(resolve, this.REQUEST_DELAY_MS));
+    }
+  }
+
+  /**
+   * Delay helper for spacing out requests
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get cached metadata or null if not cached
+   */
+  private getCachedMetadata(key: string): any | null {
+    return this.metadataCache.get(key) || null;
+  }
+
+  /**
+   * Cache metadata
+   */
+  private setCachedMetadata(key: string, data: any): void {
+    this.metadataCache.set(key, data);
+  }
+
+  /**
+   * Clear metadata cache
+   */
+  public clearCache(): void {
+    this.metadataCache.clear();
   }
 
   /**
@@ -146,7 +191,7 @@ export class AccountBalanceService {
     // Find sBTC balance if it exists
     const sbtcToken = ftBalance.find((token) => token.asset_identifier === "SN69P7RZRKK8ERQCCABHT2JWKB2S4DHH9H74231T.sbtc-token::sbtc-token");
     const sBtcBalance = sbtcToken ? await this.constructFtBalance(address, sbtcToken, config) : null;
-    
+
     return {
       raw: balanceData,
       ft: ftBalance,
@@ -158,6 +203,7 @@ export class AccountBalanceService {
 
   /**
    * Get complete account balances with metadata (STX, FT, NFT)
+   * @deprecated Use getAccountBalances() and fetchMetadata() separately for better performance
    */
   async getAccountBalancesWithMetadata(address: string, config?: Partial<ApiConfig>): Promise<{
     balances: AccountBalanceType | null;
@@ -183,11 +229,14 @@ export class AccountBalanceService {
       };
     }
 
-    // Fetch metadata in parallel
-    const [nftMetadata, ftMetadata] = await Promise.all([
-      this.fetchAllNftMetadata(balances.nft, address, config),
-      this.fetchAllFtMetadata(balances.ft, address, config)
-    ]);
+    // Limit the number of tokens to process to avoid overwhelming the API
+    const MAX_TOKENS_TO_PROCESS = 10;
+    const limitedFtTokens = balances.ft.slice(0, MAX_TOKENS_TO_PROCESS);
+    const limitedNftTokens = balances.nft.slice(0, MAX_TOKENS_TO_PROCESS);
+
+    // Fetch metadata sequentially to avoid rate limiting
+    const nftMetadata = await this.fetchAllNftMetadata(limitedNftTokens, address, config);
+    const ftMetadata = await this.fetchAllFtMetadata(limitedFtTokens, address, config);
 
     return {
       balances,
@@ -197,27 +246,285 @@ export class AccountBalanceService {
   }
 
   /**
+   * Fetch metadata for FT tokens separately
+   * @param fts - Array of FT tokens to fetch metadata for
+   * @param address - Wallet address (for context)
+   * @param config - Optional configuration override
+   * @returns Promise resolving to FT metadata object
+   */
+  async fetchFtMetadata(
+    fts: FtResponseBalance[],
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<Record<string, any>> {
+    return this.fetchAllFtMetadata(fts, address, config);
+  }
+
+  /**
+   * Fetch metadata for NFT tokens separately
+   * @param nfts - Array of NFT tokens to fetch metadata for
+   * @param address - Wallet address (for context)
+   * @param config - Optional configuration override
+   * @returns Promise resolving to NFT metadata object
+   */
+  async fetchNftMetadata(
+    nfts: NftResponseBalance[],
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<Record<string, NftMetadataResponse>> {
+    return this.fetchAllNftMetadata(nfts, address, config);
+  }
+
+  /**
+   * Fetch NFT holdings for a specific asset with pagination
+   * @param principal - The wallet address to fetch holdings for
+   * @param assetIdentifiers - Array of asset identifiers to fetch holdings for
+   * @param offset - Pagination offset (default: 0)
+   * @param limit - Number of results per page (default: 50)
+   * @param config - Optional configuration override
+   * @returns Promise resolving to NFT holdings data
+   */
+  async fetchNftHoldings(
+    principal: string,
+    assetIdentifiers: string[],
+    offset: number = 0,
+    limit: number = 50,
+    config?: Partial<ApiConfig>
+  ): Promise<any> {
+    if (!principal || !assetIdentifiers || assetIdentifiers.length === 0) {
+      return null;
+    }
+
+    const apiConfig = { ...this.defaultConfig, ...config };
+
+    try {
+      // Join asset identifiers with comma for the API
+      const assetIdentifiersParam = assetIdentifiers.join(',');
+
+      const response = await axios.get(
+        `${apiConfig.baseUrl}/extended/v1/tokens/nft/holdings?principal=${principal}&asset_identifiers=${assetIdentifiersParam}&offset=${offset}&limit=${limit}`,
+        {
+          timeout: apiConfig.timeout,
+          headers: apiConfig.headers,
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch NFT holdings:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch metadata for individual NFT items
+   * @param nftItems - Array of NFT items with asset_identifier and value
+   * @param config - Optional configuration override
+   * @returns Promise resolving to NFT items with metadata
+   */
+  async fetchNftItemsMetadata(
+    nftItems: any[],
+    config?: Partial<ApiConfig>
+  ): Promise<any[]> {
+    if (!nftItems || nftItems.length === 0) {
+      return [];
+    }
+
+    const apiConfig = { ...this.defaultConfig, ...config };
+    const itemsWithMetadata = [];
+
+    for (let i = 0; i < nftItems.length; i++) {
+      const item = nftItems[i];
+
+      // Add delay between requests to avoid rate limiting
+      if (i > 0) {
+        await this.delay(this.REQUEST_DELAY_MS);
+      }
+
+      try {
+        // Extract principal and token ID from the item
+        const principal = item.asset_identifier?.split("::")[0];
+        const tokenId = item.value?.repr?.replace("u", "");
+
+        if (!principal || !tokenId) {
+          itemsWithMetadata.push({
+            ...item,
+            metadata: null
+          });
+          continue;
+        }
+
+        // Check cache first
+        const cacheKey = `nft_item_${principal}_${tokenId}`;
+        const cachedData = this.getCachedMetadata(cacheKey);
+
+        if (cachedData) {
+          itemsWithMetadata.push({
+            ...item,
+            metadata: cachedData
+          });
+          continue;
+        }
+
+        // Wait for rate limit
+        await this.waitForRateLimit();
+        this.activeRequests++;
+
+        const response = await axios.get(
+          `${apiConfig.baseUrl}/metadata/v1/nft/${principal}/${tokenId}`,
+          {
+            timeout: apiConfig.timeout,
+            headers: apiConfig.headers,
+          }
+        );
+
+        // Cache the result
+        this.setCachedMetadata(cacheKey, response.data);
+
+        itemsWithMetadata.push({
+          ...item,
+          metadata: response.data
+        });
+      } catch (error) {
+        itemsWithMetadata.push({
+          ...item,
+          metadata: null
+        });
+      } finally {
+        this.activeRequests--;
+      }
+    }
+
+    return itemsWithMetadata;
+  }
+
+  /**
+   * Fetch metadata for a single NFT item
+   * @param item - NFT item with asset_identifier and value
+   * @param config - Optional configuration override
+   * @returns Promise resolving to NFT item with metadata
+   */
+  async fetchSingleNftItemMetadata(
+    item: any,
+    config?: Partial<ApiConfig>
+  ): Promise<any> {
+    if (!item) {
+      return null;
+    }
+
+    const apiConfig = { ...this.defaultConfig, ...config };
+
+    try {
+      // Extract principal and token ID from the item
+      const principal = item.asset_identifier?.split("::")[0];
+      const tokenId = item.value?.repr?.replace("u", "");
+
+      if (!principal || !tokenId) {
+        return {
+          ...item,
+          metadata: null
+        };
+      }
+
+      // Check cache first
+      const cacheKey = `nft_item_${principal}_${tokenId}`;
+      const cachedData = this.getCachedMetadata(cacheKey);
+
+      if (cachedData) {
+        return {
+          ...item,
+          metadata: cachedData
+        };
+      }
+
+      // Add delay before making the request
+      await this.delay(this.REQUEST_DELAY_MS);
+
+      // Wait for rate limit
+      await this.waitForRateLimit();
+      this.activeRequests++;
+
+      const response = await axios.get(
+        `${apiConfig.baseUrl}/metadata/v1/nft/${principal}/${tokenId}`,
+        {
+          timeout: apiConfig.timeout,
+          headers: apiConfig.headers,
+        }
+      );
+
+      // Cache the result
+      this.setCachedMetadata(cacheKey, response.data);
+
+      return {
+        ...item,
+        metadata: response.data
+      };
+    } catch (error) {
+      return {
+        ...item,
+        metadata: null
+      };
+    } finally {
+      this.activeRequests--;
+    }
+  }
+
+  /**
+   * Fetch metadata for both FT and NFT tokens
+   * @param fts - Array of FT tokens to fetch metadata for
+   * @param nfts - Array of NFT tokens to fetch metadata for
+   * @param address - Wallet address (for context)
+   * @param config - Optional configuration override
+   * @returns Promise resolving to both FT and NFT metadata objects
+   */
+  async fetchAllMetadata(
+    fts: FtResponseBalance[],
+    nfts: NftResponseBalance[],
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<{
+    ftMetadata: Record<string, any>;
+    nftMetadata: Record<string, NftMetadataResponse>;
+  }> {
+    // Limit the number of tokens to process to avoid overwhelming the API
+    const MAX_TOKENS_TO_PROCESS = 10;
+    const limitedFtTokens = fts.slice(0, MAX_TOKENS_TO_PROCESS);
+    const limitedNftTokens = nfts.slice(0, MAX_TOKENS_TO_PROCESS);
+
+    // Fetch metadata sequentially to avoid rate limiting
+    const [nftMetadata, ftMetadata] = await Promise.all([
+      this.fetchAllNftMetadata(limitedNftTokens, address, config),
+      this.fetchAllFtMetadata(limitedFtTokens, address, config)
+    ]);
+
+    return {
+      ftMetadata,
+      nftMetadata
+    };
+  }
+
+  /**
    * Format decimal values
    */
   private formatDecimals(value: number | string, decimals: number, isUmicro: boolean): string {
-      if (isUmicro) {
-         return (Number(value) * 10 ** decimals).toFixed(0);
-      } else {
-         return (Number(value) / 10 ** decimals).toFixed(4);
-      }
+    if (isUmicro) {
+      return (Number(value) * 10 ** decimals).toFixed(0);
+    } else {
+      return (Number(value) / 10 ** decimals).toFixed(4);
+    }
   }
 
   /**
    * Construct STX balance object
    */
   private constructStxBalance(stxRes: StxResponseBalance): FungibleType {
-      return {
-         umicro: stxRes.balance,
-         balance: this.formatDecimals(stxRes.balance, 6, false),
-         decimal: 6,
-         name: "Stacks",
-         symbol: "STX",
-         icon: "/icons/stx.png",
+    return {
+      umicro: stxRes.balance,
+      balance: this.formatDecimals(stxRes.balance, 6, false),
+      decimal: 6,
+      name: "Stacks",
+      symbol: "STX",
+      icon: "/icons/stx.png",
       contract: ".stacks",
       asset_identifier: ".stacks::stx",
     };
@@ -249,7 +556,7 @@ export class AccountBalanceService {
   }
 
   /**
-   * Fetch metadata for all NFT collections
+   * Fetch metadata for all NFT collections with rate limiting and caching
    */
   private async fetchAllNftMetadata(
     nfts: NftResponseBalance[],
@@ -259,15 +566,31 @@ export class AccountBalanceService {
     if (!nfts || nfts.length === 0) return {};
 
     const apiConfig = { ...this.defaultConfig, ...config };
-    const metadataPromises = nfts.map(async (nft) => {
+    const results: Record<string, NftMetadataResponse> = {};
+
+    // Process NFTs in batches to avoid overwhelming the API
+    for (let i = 0; i < nfts.length; i++) {
+      const nft = nfts[i];
+
       // Safety check for asset_identifier
       if (!nft.asset_identifier) {
-        console.warn('NFT token missing asset_identifier:', nft);
-        return { [nft.asset_identifier]: null };
+        continue;
       }
 
-      const principal = nft.asset_identifier?.split("::")[0];
+      // Check cache first
+      const cacheKey = `nft_${nft.asset_identifier}`;
+      const cachedData = this.getCachedMetadata(cacheKey);
+      if (cachedData) {
+        results[nft.asset_identifier] = cachedData;
+        continue;
+      }
+
+      // Wait for rate limit
+      await this.waitForRateLimit();
+      this.activeRequests++;
+
       try {
+        const principal = nft.asset_identifier?.split("::")[0];
         const response = await axios.get(
           `${apiConfig.baseUrl}/metadata/v1/nft/${principal}/1`,
           {
@@ -275,19 +598,33 @@ export class AccountBalanceService {
             headers: apiConfig.headers,
           }
         );
-        return { [nft.asset_identifier]: response.data };
-      } catch (error) {
-        console.error(`Failed to fetch NFT metadata for ${nft.asset_identifier}:`, error);
-        return { [nft.asset_identifier]: null };
-      }
-    });
 
-    const results = await Promise.all(metadataPromises);
-    return results.reduce((acc, result) => ({ ...acc, ...result }), {});
+        // Cache the result
+        this.setCachedMetadata(cacheKey, response.data);
+        results[nft.asset_identifier] = response.data;
+      } catch (error) {
+        // Handle specific error types
+        if (error.response?.status === 429) {
+        } else if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
+        } else {
+          console.error(`Failed to fetch NFT metadata for ${nft.asset_identifier}:`, error);
+        }
+        results[nft.asset_identifier] = null;
+      } finally {
+        this.activeRequests--;
+
+        // Add delay between requests to avoid rate limiting
+        if (i < nfts.length - 1) {
+          await this.delay(this.REQUEST_DELAY_MS);
+        }
+      }
+    }
+
+    return results;
   }
 
   /**
-   * Fetch metadata for all FT tokens
+   * Fetch metadata for all FT tokens with rate limiting and caching
    */
   private async fetchAllFtMetadata(
     fts: FtResponseBalance[],
@@ -297,12 +634,28 @@ export class AccountBalanceService {
     if (!fts || fts.length === 0) return {};
 
     const apiConfig = { ...this.defaultConfig, ...config };
-    const metadataPromises = fts.map(async (ft) => {
+    const results: Record<string, any> = {};
+
+    // Process tokens in batches to avoid overwhelming the API
+    for (let i = 0; i < fts.length; i++) {
+      const ft = fts[i];
+
       // Safety check for asset_identifier
       if (!ft.asset_identifier) {
-        console.warn('FT token missing asset_identifier:', ft);
-        return { [ft.asset_identifier]: null };
+        continue;
       }
+
+      // Check cache first
+      const cacheKey = `ft_${ft.asset_identifier}`;
+      const cachedData = this.getCachedMetadata(cacheKey);
+      if (cachedData) {
+        results[ft.asset_identifier] = cachedData;
+        continue;
+      }
+
+      // Wait for rate limit
+      await this.waitForRateLimit();
+      this.activeRequests++;
 
       try {
         const principal = ft.asset_identifier?.split("::")[0];
@@ -313,15 +666,29 @@ export class AccountBalanceService {
             headers: apiConfig.headers,
           }
         );
-        return { [ft.asset_identifier]: response.data };
-      } catch (error) {
-        console.error(`Failed to fetch FT metadata for ${ft.asset_identifier}:`, error);
-        return { [ft.asset_identifier]: null };
-      }
-    });
 
-    const results = await Promise.all(metadataPromises);
-    return results.reduce((acc, result) => ({ ...acc, ...result }), {});
+        // Cache the result
+        this.setCachedMetadata(cacheKey, response.data);
+        results[ft.asset_identifier] = response.data;
+      } catch (error) {
+        // Handle specific error types
+        if (error.response?.status === 429) {
+        } else if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
+        } else {
+          console.error(`Failed to fetch FT metadata for ${ft.asset_identifier}:`, error);
+        }
+        results[ft.asset_identifier] = null;
+      } finally {
+        this.activeRequests--;
+
+        // Add delay between requests to avoid rate limiting
+        if (i < fts.length - 1) {
+          await this.delay(this.REQUEST_DELAY_MS);
+        }
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -358,29 +725,15 @@ export class AccountBalanceService {
     config?: Partial<ApiConfig>
   ): Promise<FungibleType | null> {
     const tokenMeta = await this.handleGetFtMeta(address, ftRes.asset_identifier, config);
-    if (!tokenMeta) {
-      // Fallback to basic info if metadata fetch fails
-      return {
-         umicro: ftRes.balance,
-        balance: this.formatDecimals(ftRes.balance, 6, false),
-        decimal: 6,
-        name: ftRes.asset_identifier?.split("::")[1],
-        symbol: ftRes.asset_identifier?.split("::")[1],
-        icon: "",
-        contract: ftRes.asset_identifier?.split("::")[0],
-        asset_identifier: ftRes.asset_identifier,
-      };
-    }
-
     return {
-      umicro: ftRes.balance,
-      balance: this.formatDecimals(ftRes.balance, tokenMeta.decimals || 6, false),
-      decimal: tokenMeta.decimals || 6,
-      name: tokenMeta.name || ftRes.asset_identifier?.split("::")[1],
-      symbol: tokenMeta.symbol || ftRes.asset_identifier?.split("::")[1],
-      icon: tokenMeta.image_thumbnail_uri || tokenMeta.image_uri || "",
-      contract: tokenMeta.asset_identifier?.split("::")[0],
-      asset_identifier: tokenMeta.asset_identifier,
+      umicro: ftRes?.balance || "0",
+      balance: this.formatDecimals(ftRes?.balance || 0, +tokenMeta?.decimals || 0, false),
+      decimal: ftRes.asset_identifier === '.stacks' ? 6 : tokenMeta?.decimals || 0,
+      name: tokenMeta?.name || ftRes?.asset_identifier?.split("::")[1],
+      symbol: tokenMeta?.symbol || ftRes?.asset_identifier?.split("::")[1],
+      icon: tokenMeta?.image_thumbnail_uri || tokenMeta?.image_uri || "",
+      contract: tokenMeta?.asset_identifier?.split("::")[0],
+      asset_identifier: tokenMeta?.asset_identifier,
     };
   }
 

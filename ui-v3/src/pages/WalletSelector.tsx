@@ -17,7 +17,6 @@ import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import useGetRates from "@/hooks/useGetRates";
 import { MockAccountBalanceService } from "@/services/mocks/mockAccountBalanceService";
 import { MockSmartWalletContractService } from "@/services/mocks/mockSmartWalletContractService";
-import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 
 const WalletSelector = () => {
   // State management
@@ -134,14 +133,6 @@ const WalletSelector = () => {
   const usdValue = isDemoMode
     ? (demoBalance?.stx ? (Number(demoBalance.stx.balance) * Number(usdPrice ?? 0)).toFixed(4) : '0.0000')
     : (rateLoading ? '0.0000' : (Number(stxBalance?.balance ?? 0) * Number(usdPrice ?? 0)).toFixed(4));
-
-  console.log({ 
-    walletsToShow, 
-    deployedContracts, 
-    smartWalletsOnly: deployedContracts.filter(contract => !contract.ext),
-    extensionsOnly: deployedContracts.filter(contract => contract.ext),
-    importedWallets 
-  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
