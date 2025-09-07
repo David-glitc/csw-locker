@@ -40,7 +40,6 @@ const CreateWallet = () => {
 
   const handleCreateWallet = async () => {
     if (!selectedContract) {
-      console.error('No contract selected');
       return;
     }
 
@@ -57,10 +56,8 @@ const CreateWallet = () => {
         clarityVersion: 3
       });
 
-      console.log('Contract deployment initiated successfully');
       // Optionally navigate to the new wallet or show success message
     } catch (error) {
-      console.error('Failed to deploy contract:', error);
     } finally {
       setIsCreating(false);
     }
@@ -69,13 +66,11 @@ const CreateWallet = () => {
   const handleNetworkSwitch = (network: 'mainnet' | 'testnet') => {
     setSelectedNetwork(network);
     setIsAutoDetected(false); // Clear auto-detected flag when user manually switches
-    console.log(`Manually switched to ${network}`);
   };
 
   useEffect(() => {
     async function init() {
       const vContracts = await getVerifiedContracts(walletData?.addresses?.stx[0]?.address)
-      console.log({ vContracts })
       setVerifiedContracts(vContracts)
     }
     init()
@@ -88,7 +83,6 @@ const CreateWallet = () => {
       const config = getClientConfig(address);
       setSelectedNetwork(config.network as 'mainnet' | 'testnet');
       setIsAutoDetected(true);
-      console.log(`Auto-detected network: ${config.network} for address: ${address}`);
     } else {
       setIsAutoDetected(false);
     }

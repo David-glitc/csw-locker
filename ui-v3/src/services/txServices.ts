@@ -122,7 +122,6 @@ export class TxServices {
                 }
             }
         }
-        console.log({ txOption, params })
         const txData = await request("stx_callContract", txOption)
         return txData
     }
@@ -207,7 +206,6 @@ export class TxServices {
                 }
             }
         }
-        console.log({ txOption, params })
         const data = await request(params.asset === 'stx' ? "stx_transferStx" : "stx_callContract", txOption)
         return { txid: data.txid };
     }

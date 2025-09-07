@@ -43,7 +43,6 @@ export const useSendAssetsWizard = () => {
             .sort((a, b) => new Date(b.lastSent).getTime() - new Date(a.lastSent).getTime())
             .slice(0, 10);
       } catch (error) {
-         console.error('Error getting recent recipients from storage:', error);
          return [];
       }
    };
@@ -125,10 +124,7 @@ export const useSendAssetsWizard = () => {
             description: `Removed ${address} from recent recipients`,
          });
 
-         console.log('Successfully removed recipient:', address);
-         console.log('Storage stats:', RecipientStorageService.getStorageStats());
       } catch (error) {
-         console.error('Error removing recipient:', error);
          toast({
             title: "Error",
             description: "Failed to remove recipient. Please try again.",
@@ -148,7 +144,6 @@ export const useSendAssetsWizard = () => {
          contractAddress: contractAddress,
          ...(assetType === "nft" && { tokenId }),
       };
-      console.log({ transactionParams });
       try {
          const result = await txSendTransaction(transactionParams);
 
@@ -165,19 +160,9 @@ export const useSendAssetsWizard = () => {
             // Refresh recipients list
             const recentRecipients = getRecentRecipientsFromStorage();
             setRecipients(recentRecipients);
-
-            console.log('Transaction saved to localStorage:', {
-               from: selectedWallet.address,
-               to: recipient,
-               amount,
-               asset,
-               txHash: result.txid || result.transaction
-            });
-
             resetForm();
          }
       } catch (error) {
-         console.error('Transaction error:', error);
       }
    };
 

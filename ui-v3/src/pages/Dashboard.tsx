@@ -23,7 +23,6 @@ const Dashboard = () => {
   const { selectedWallet: walletData, isLoading } = useSelectedWallet();
   const { stxBalance, nftBalance, ftBalance, loading, error } = useAccountBalanceService(walletId)
   const { extensions, loading: extensionsLoading } = useSmartWalletContractService(walletId?.split('.')[0])
-console.log('ftBalance', ftBalance, 'nftBalance', nftBalance, 'stxBalance', stxBalance);
   // Use the useGetRates hook for STX and sBTC rates
   const { rates: stxRates, loading: stxLoading, usdPrice: stxUsdPrice, error: stxError } = useGetRates(".stx")
   const { rates: sbtcRates, loading: sbtcLoading, usdPrice: sbtcUsdPrice, error: sbtcError } = useGetRates("SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token")

@@ -45,7 +45,6 @@ export const useWalletConnection = () => {
           setIsWalletConnected(connected);
         }
       } catch (error) {
-        console.error("Error getting wallet data:", error)
       }
     }
   }, [isConnected()]);
@@ -69,7 +68,6 @@ export const useWalletConnection = () => {
         setWalletData(transformedData);
       }
     } catch (error) {
-      console.error("Failed to connect wallet:", error);
     } finally {
       setIsConnecting(false);
     }
@@ -78,7 +76,6 @@ export const useWalletConnection = () => {
     disconnect()
     setIsWalletConnected(isConnected())
     setWalletData(null)
-    console.log("Wallet disconnected")
     nav('/')
   }
 

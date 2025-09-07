@@ -44,7 +44,6 @@ const NftItemCard = ({ item, isSelected, onSelect, onFetchMetadata, delay = 0 }:
           await onFetchMetadata(item);
           setHasMetadata(true);
         } catch (error) {
-          console.warn('Failed to fetch metadata for item:', item.asset_identifier, error);
         } finally {
           setIsLoading(false);
         }
@@ -161,7 +160,6 @@ const ReceiveAssets = () => {
 
         // Check if metadata already exists
         const existingMetadata = ftMetadata[ft.asset_identifier];
-        console.log({ existingMetadata });
 
         if (existingMetadata) {
           // Use existing metadata
@@ -197,7 +195,6 @@ const ReceiveAssets = () => {
               decimal: ft.asset_identifier.split("::")[0] === ".stacks" ? 6 : tokenMetadata?.decimals || 0
             });
           } catch (error) {
-            console.warn(`Failed to fetch metadata for ${ft.asset_identifier}:`, error);
             // Fallback to basic info if metadata fetch fails
             processedTokens.push({
               ...ft,
@@ -267,7 +264,6 @@ const ReceiveAssets = () => {
               tokenId: nft.count
             });
           } catch (error) {
-            console.warn(`Failed to fetch NFT metadata for ${nft.asset_identifier}:`, error);
             // Fallback to basic info if metadata fetch fails
             processedTokens.push({
               ...nft,
@@ -306,7 +302,6 @@ const ReceiveAssets = () => {
 
     const selectedNft = processedNftTokens[parseInt(selectedIndex)];
     if (selectedNft) {
-      console.log('Fetching holdings for NFT:', selectedNft.asset_identifier);
       setSelectedNftItem(null); // Reset selected item
       await fetchNftHoldings([selectedNft.asset_identifier]);
     }
@@ -315,7 +310,6 @@ const ReceiveAssets = () => {
   // Function to select individual NFT item
   const handleNftItemSelection = (nftItem: any) => {
     setSelectedNftItem(nftItem);
-    console.log('Selected NFT item:', nftItem);
   };
 
   // Function to load more NFT holdings
@@ -384,7 +378,6 @@ const ReceiveAssets = () => {
     setShowMaxWarning(false);
   };
 
-  console.log({ selectedToken, processedFtTokens, processedNftTokens });
 
   return (
     <WalletLayout>

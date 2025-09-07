@@ -6,7 +6,8 @@ import { History ,ArrowDownLeft, ArrowUpRight, TrendingUp, Loader2, ExternalLink
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import SecondaryButton from "@/components/ui/secondary-button";
-import { TxInfo, TransactionDataService } from "@/services/transactionDataService";
+import { TransactionDataService } from "@/services/transactionDataService";
+import { TxInfo } from "@/services/types";
 import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import { Skeleton } from "@/components/ui/skeleton";
 import{ formatAmount } from "@/lib/txFormatUtils"
@@ -140,7 +141,6 @@ const ActionHistory = () => {
     return 6;
   };
 
-  console.log("Transaction:", transactions);
   return (
     <WalletLayout>
       <div className="space-y-6">

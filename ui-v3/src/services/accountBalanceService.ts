@@ -345,10 +345,8 @@ export class AccountBalanceService {
         // Extract principal and token ID from the item
         const principal = item.asset_identifier?.split("::")[0];
         const tokenId = item.value?.repr?.replace("u", "");
-        console.log('fetching nft items metadata for', { metadata: item.asset_identifier, principal: principal, tokenId: tokenId });
 
         if (!principal || !tokenId) {
-          console.warn('Missing principal or tokenId for NFT item:', item);
           itemsWithMetadata.push({
             ...item,
             metadata: null
@@ -388,7 +386,6 @@ export class AccountBalanceService {
           metadata: response.data
         });
       } catch (error) {
-        console.warn(`Failed to fetch metadata for NFT item ${item.asset_identifier}:`, error);
         itemsWithMetadata.push({
           ...item,
           metadata: null
@@ -423,7 +420,6 @@ export class AccountBalanceService {
       const tokenId = item.value?.repr?.replace("u", "");
 
       if (!principal || !tokenId) {
-        console.warn('Missing principal or tokenId for NFT item:', item);
         return {
           ...item,
           metadata: null
@@ -464,7 +460,6 @@ export class AccountBalanceService {
         metadata: response.data
       };
     } catch (error) {
-      console.warn(`Failed to fetch metadata for NFT item ${item.asset_identifier}:`, error);
       return {
         ...item,
         metadata: null
@@ -579,7 +574,6 @@ export class AccountBalanceService {
 
       // Safety check for asset_identifier
       if (!nft.asset_identifier) {
-        console.warn('NFT token missing asset_identifier:', nft);
         continue;
       }
 
@@ -611,9 +605,7 @@ export class AccountBalanceService {
       } catch (error) {
         // Handle specific error types
         if (error.response?.status === 429) {
-          console.warn(`Rate limited for NFT ${nft.asset_identifier}, skipping...`);
         } else if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
-          console.warn(`CORS/Network error for NFT ${nft.asset_identifier}, skipping...`);
         } else {
           console.error(`Failed to fetch NFT metadata for ${nft.asset_identifier}:`, error);
         }
@@ -650,7 +642,6 @@ export class AccountBalanceService {
 
       // Safety check for asset_identifier
       if (!ft.asset_identifier) {
-        console.warn('FT token missing asset_identifier:', ft);
         continue;
       }
 
@@ -668,7 +659,6 @@ export class AccountBalanceService {
 
       try {
         const principal = ft.asset_identifier?.split("::")[0];
-        console.log('fetching ft metadata for', { metadata: ft.asset_identifier, principal: principal });
         const response = await axios.get(
           `${apiConfig.baseUrl}/metadata/v1/ft/${principal}`,
           {
@@ -683,9 +673,7 @@ export class AccountBalanceService {
       } catch (error) {
         // Handle specific error types
         if (error.response?.status === 429) {
-          console.warn(`Rate limited for FT ${ft.asset_identifier}, skipping...`);
         } else if (error.code === 'ERR_NETWORK' || error.message?.includes('CORS')) {
-          console.warn(`CORS/Network error for FT ${ft.asset_identifier}, skipping...`);
         } else {
           console.error(`Failed to fetch FT metadata for ${ft.asset_identifier}:`, error);
         }
@@ -737,7 +725,6 @@ export class AccountBalanceService {
     config?: Partial<ApiConfig>
   ): Promise<FungibleType | null> {
     const tokenMeta = await this.handleGetFtMeta(address, ftRes.asset_identifier, config);
-    console.log({ tokenMeta })
     return {
       umicro: ftRes?.balance || "0",
       balance: this.formatDecimals(ftRes?.balance || 0, +tokenMeta?.decimals || 0, false),

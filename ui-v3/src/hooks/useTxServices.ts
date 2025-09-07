@@ -40,7 +40,6 @@ export const useTxServices = () => {
         variant: "destructive",
       });
 
-      console.error('Transaction failed:', error);
       return null;
     } finally {
       setIsLoading(false);
@@ -75,7 +74,6 @@ export const useTxServices = () => {
         variant: "destructive",
       });
 
-      console.error('Extension call failed:', error);
       return null;
     } finally {
       setIsLoading(false);
@@ -108,7 +106,6 @@ export const useTxServices = () => {
         variant: "destructive",
       });
 
-      console.error('Contract deployment failed:', error);
       return null;
     } finally {
       setIsLoading(false);
@@ -144,7 +141,6 @@ export const useTxServices = () => {
         variant: "destructive",
       });
 
-      console.error('Add admin failed:', error);
       return null;
     } finally {
       setIsLoading(false);
@@ -180,7 +176,6 @@ export const useTxServices = () => {
         variant: "destructive",
       });
 
-      console.error('Transfer ownership failed:', error);
       return null;
     } finally {
       setIsLoading(false);
@@ -221,7 +216,6 @@ export const useTxServices = () => {
         variant: "destructive",
       });
 
-      console.error('STX deposit failed:', error);
       return null;
     } finally {
       setIsLoading(false);
@@ -236,7 +230,6 @@ export const useTxServices = () => {
       const result = await txServices.isAdmin(address, contractId);
       return result;
     } catch (error) {
-      console.error('Check admin failed:', error);
       return false;
     }
   }, []);

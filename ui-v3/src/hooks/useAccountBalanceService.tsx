@@ -94,7 +94,6 @@ export function useAccountBalanceService(walletAddress: string) {
               setNftMetadata(metadata.nftMetadata);
               setFtMetadata(metadata.ftMetadata);
             }).catch((error) => {
-              console.warn('Failed to fetch metadata:', error);
               // Don't set error state for metadata failures, just log warning
             });
           }
@@ -147,7 +146,6 @@ export function useAccountBalanceService(walletAddress: string) {
 
       return holdings;
     } catch (error) {
-      console.error('Failed to fetch NFT holdings:', error);
       setError('Failed to fetch NFT holdings');
       return null;
     } finally {
@@ -172,7 +170,6 @@ export function useAccountBalanceService(walletAddress: string) {
       setNftItemsWithMetadata(itemsWithMetadata);
       return itemsWithMetadata;
     } catch (error) {
-      console.error('Failed to fetch NFT items metadata:', error);
       setError('Failed to fetch NFT items metadata');
       return [];
     } finally {
@@ -212,7 +209,6 @@ export function useAccountBalanceService(walletAddress: string) {
 
       return itemWithMetadata;
     } catch (error) {
-      console.error('Failed to fetch single NFT item metadata:', error);
       return null;
     }
   };
