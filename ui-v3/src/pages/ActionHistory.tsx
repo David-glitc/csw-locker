@@ -13,6 +13,7 @@ import { Link, useParams } from "react-router-dom";
 import { getClientConfig } from "@/utils/chain-config"
 import { useTransactionData } from "@/hooks/useTransactionData";
 import TransactionItem from "@/components/transactions/TransactionItem";
+import PrimaryButton from "@/components/ui/primary-button";
 
 const ActionHistory = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
@@ -181,16 +182,15 @@ const ActionHistory = () => {
                     )}
                   </div>
 
-                  <Button
+                  <PrimaryButton
                     onClick={handleRefreshWithDisplayReset}
-                    variant="secondary"
                     className="flex items-center justify-center min-w-[80px] sm:min-w-[90px] px-2 sm:px-3"
                     disabled={refreshing || isLoading}
                   >
                     {refreshing ? <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" /> : null}
                     <span className="hidden sm:inline">Refresh</span>
                     <span className="sm:hidden">↻</span>
-                  </Button>
+                  </PrimaryButton>
                 </div>
               </div>
             </div>

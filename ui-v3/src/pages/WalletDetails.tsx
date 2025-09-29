@@ -406,7 +406,7 @@ const WalletDetails = () => {
               <SecondaryButton>Export Configuration</SecondaryButton>
               <Button
                 variant="outline"
-                className="border-red-600 text-red-400 hover:bg-red-600/20"
+                className="border-red-600 text-red-400 hover:bg-red-200 hover:text-red-800"
                 onClick={() => {
                   setTransactionType("transferOwnership");
                   setShowTransferModal(true);

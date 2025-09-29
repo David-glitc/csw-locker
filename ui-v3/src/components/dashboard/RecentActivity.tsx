@@ -10,6 +10,7 @@ import { formatAmount } from "@/lib/txFormatUtils";
 import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import { Skeleton } from "@/components/ui/skeleton";
 import TransactionItem from "../transactions/TransactionItem";
+import PrimaryButton from "../ui/primary-button";
 
 interface RecentActivityProps {
   walletAddress?: string; // connected wallet
@@ -173,15 +174,14 @@ const RecentActivity = ({ walletAddress, smartWalletAddress }: RecentActivityPro
         </div>
         {/* Only show the button if there are more than 5 activities */}
         <div className="flex justify-end mt-4">
-          <Button
+          <PrimaryButton
             onClick={handleRefresh}
-            variant="secondary"
             className="flex items-center justify-center min-w-[90px]"
             disabled={refreshing || loading}
           >
             {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Refresh
-          </Button>
+          </PrimaryButton>
         </div>
       </CardContent>
     </Card>
