@@ -12,6 +12,7 @@ import { formatAmount } from "@/lib/txFormatUtils"
 import { Link, useParams } from "react-router-dom";
 import { getClientConfig } from "@/utils/chain-config"
 import { useTransactionData } from "@/hooks/useTransactionData";
+import TransactionItem from "@/components/transactions/TransactionItem";
 
 const ActionHistory = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
@@ -115,7 +116,7 @@ const ActionHistory = () => {
                 <span className="hidden sm:inline">Transaction History</span>
                 <span className="sm:hidden">Transactions</span>
               </CardTitle>
-              
+
               {/* Mobile: Stack controls vertically, Desktop: Horizontal */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2">
                 {/* Active filters display */}
@@ -129,7 +130,7 @@ const ActionHistory = () => {
                     </span>
                   </div>
                 )}
-                
+
                 {/* Search and Filter Row */}
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1 min-w-0">
@@ -151,7 +152,7 @@ const ActionHistory = () => {
                       </button>
                     )}
                   </div>
-                  
+
                   <div className="relative">
                     <button
                       type="button"
@@ -179,11 +180,11 @@ const ActionHistory = () => {
                       </div>
                     )}
                   </div>
-                  
-                  <Button 
-                    onClick={handleRefreshWithDisplayReset} 
-                    variant="secondary" 
-                    className="flex items-center justify-center min-w-[80px] sm:min-w-[90px] px-2 sm:px-3" 
+
+                  <Button
+                    onClick={handleRefreshWithDisplayReset}
+                    variant="secondary"
+                    className="flex items-center justify-center min-w-[80px] sm:min-w-[90px] px-2 sm:px-3"
                     disabled={refreshing || isLoading}
                   >
                     {refreshing ? <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" /> : null}
@@ -224,68 +225,16 @@ const ActionHistory = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {visibleTransactions.map((tx) => {
-                    const Icon = getTransactionIcon(tx.action, tx.tx_type);
-                    const amountPrefix = tx.action === 'sent' ? '-' : '+';
-                    const asset = tx.assets[0]?.symbol || 'STX';
-                    const amount = tx.assets[0]?.amount || '0';
-                    const isSmartContractCall = tx.tx_type === 'contract_call' || tx.tx_type === 'smart_contract';
-                    const isContractDeploy = tx.action === 'contract_deploy';
-                    const hideAmount = (isSmartContractCall && (!amount || amount === '0'));
-                    return (
-                      <div key={tx.tx} className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors">
-                        <div className="flex items-center space-x-4">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getAmountColor(tx.action)} bg-slate-600/20`}>
-                            <Icon className={`h-5 w-5 ${tx.action === 'receive' ? 'text-green-400 rotate-180' : ''}`} />
-                          </div>
-                          <div>
-                            <div className="text-white font-medium capitalize">
-                              {getTxLabel(tx)}{!(isSmartContractCall || isContractDeploy) ? ` ${asset}` : ''}
-                            </div>
-                            <div className="text-slate-400 text-sm whitespace-pre-line">
-                              {tx.action === 'sent'
-                                ? <>
-                                  <span className="hidden md:block text-green-400">To: {tx.sender}</span>
-                                  <span className="block md:hidden text-green-400">To: {`${tx.sender.slice(0, 4)}...${tx.sender.slice(-4)}`}</span>
-                                </>
-                                : <>
-                                  <span className="hidden md:block text-red-400">From: {tx.sender}</span>
-                                  <span className="block md:hidden text-red-400">From: {`${tx.sender.slice(0, 4)}...${tx.sender.slice(-4)}`}</span>
-                                </>}
-                              {' • '}{tx.stamp}
-                            </div>
-                            <div className="text-slate-500 text-xs flex items-center gap-2 hidden md:flex">
-                              TX: {tx.tx}
-                              <Link to={`${config.explorer(`txid/${tx.tx}`)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-slate-400 hover:text-white">
-                                <ExternalLink className="w-4 h-4 text-slate-400 hover:text-white" />
-                              </Link>
-                            </div>
-                            <div className="text-slate-500 text-xs flex items-center gap-2 flex md:hidden">
-                              TX: {`${tx.tx.slice(0, 4)}...${tx.tx.slice(-4)}`}
-                              <Link to={`${config.explorer(`txid/${tx.tx}`)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-slate-400 hover:text-white">
-                                <ExternalLink className="w-4 h-4 text-slate-400 hover:text-white" />
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {!hideAmount && (
-                            <div className={`font-medium ${getAmountColor(tx.action)}`}>
-                              {amountPrefix}{formatAmount(amount, getDecimalPlaces(asset))} {asset}
-                              {asset === 'STX' && stxUsd && (
-                                <span className="text-xs text-slate-400 ml-2">
-                                  (${((Number(amount) / Math.pow(10, getDecimalPlaces(asset))) * stxUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD)
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          <div className={`text-sm capitalize ${getStatusColor(tx.tx_status)}`}>
-                            {tx.tx_status}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {visibleTransactions.map((tx) => (
+                    <TransactionItem
+                      key={tx.tx}
+                      tx={tx}
+                      stxUsd={stxUsd}
+                      walletId={walletId}
+                      assetDecimals={assetDecimals}
+                      showFullDetails={true}
+                    />
+                  ))}
                 </div>
               )}
             </div>
