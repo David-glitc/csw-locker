@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useTxServices } from "@/hooks/useTxServices";
+import RedButton from "@/components/ui/red-button";
 
 type WalletInfo = {
   smart_contract?: {
@@ -404,26 +405,20 @@ const WalletDetails = () => {
                 <a href={`/dashboard/${walletId}`}>Open Dashboard</a>
               </GreenButton>
               <SecondaryButton>Export Configuration</SecondaryButton>
-              <Button
-                variant="outline"
-                className="border-red-600 text-red-400 hover:bg-red-200 hover:text-red-800"
-                onClick={() => {
-                  setTransactionType("transferOwnership");
-                  setShowTransferModal(true);
-                }}
-              >
+              <RedButton onClick={() => {
+                setTransactionType("transferOwnership");
+                setShowTransferModal(true);
+              }}>
                 Transfer Ownership
-              </Button>
-              <Button
-                variant="outline"
-                className="border-blue-600 text-blue-400 hover:bg-blue-600/20"
+              </RedButton>
+              <RedButton
                 onClick={() => {
                   setTransactionType("addAdmin");
                   setShowAdminModal(true);
                 }}
               >
                 Add Admin
-              </Button>
+              </RedButton>
             </div>
           </CardContent>
         </Card>
