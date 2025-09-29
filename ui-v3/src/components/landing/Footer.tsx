@@ -49,10 +49,6 @@ const Footer = () => {
             <p className="text-slate-400 text-sm">
               © 2025 Smart Wallet. All rights reserved.
             </p>
-            <div className="flex space-x-6 mt-4 md:mt-0">
-              <a href="#" className="text-slate-400 hover:text-white text-sm transition-colors">Privacy</a>
-              <Link to="/terms" className="text-slate-400 hover:text-white text-sm transition-colors">Terms</Link>
-            </div>
           </div>
         </div>
       </div>
