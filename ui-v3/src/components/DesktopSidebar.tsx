@@ -30,7 +30,7 @@ const DesktopSidebar = ({ currentWallet, walletId }: DesktopSidebarProps) => {
     { path: `/actions/${walletId}`, label: "Extensions", icon: Puzzle },
     { path: `/contract-actions/${walletId}`, label: "Contract Actions", icon: CheckSquare },
     { path: `/history/${walletId}`, label: "History", icon: History },
-    { path: `/contract-details/${walletId}`, label: "Contract Details", icon: ScrollText },
+    { path: `/wallet-details/${walletId}`, label: "Wallet Details", icon: ScrollText },
   ];
 
   // Add stacking item only if extension is active
@@ -63,8 +63,8 @@ const DesktopSidebar = ({ currentWallet, walletId }: DesktopSidebarProps) => {
                   asChild
                   variant={isActive ? "secondary" : "ghost"}
                   className={`w-full justify-start font-medium transition-all duration-200 ${isActive
-                      ? "bg-purple-600/30 text-purple-200 border border-purple-600/50 hover:bg-purple-600/40 hover:text-purple-100 shadow-lg shadow-purple-600/20"
-                      : "text-slate-200 hover:bg-slate-700/60 hover:text-white hover:border hover:border-slate-600/50 hover:shadow-md"
+                    ? "bg-purple-600/30 text-purple-200 border border-purple-600/50 hover:bg-purple-600/40 hover:text-purple-100 shadow-lg shadow-purple-600/20"
+                    : "text-slate-200 hover:bg-slate-700/60 hover:text-white hover:border hover:border-slate-600/50 hover:shadow-md"
                     }`}
                 >
                   <Link to={item.path}>

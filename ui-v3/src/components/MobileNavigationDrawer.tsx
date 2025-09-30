@@ -43,7 +43,7 @@ const MobileNavigationDrawer = ({
     { path: `/actions/${walletId}`, label: "Actions", icon: Wallet },
     { path: `/contract-actions/${walletId}`, label: "Contract Actions", icon: Wallet },
     { path: `/history/${walletId}`, label: "History", icon: History },
-    { path: `/contract-details/${walletId}`, label: "Contract Details", icon: Wallet },
+    { path: `/wallet-details/${walletId}`, label: "Wallet Details", icon: Wallet },
   ];
 
   // Add stacking item only if extension is active
@@ -104,8 +104,8 @@ const MobileNavigationDrawer = ({
                     asChild
                     variant={isActive ? "secondary" : "ghost"}
                     className={`w-full justify-start font-medium ${isActive
-                        ? "bg-purple-600/30 text-purple-200 border border-purple-600/50"
-                        : "text-slate-200 hover:bg-slate-700/60 hover:text-white"
+                      ? "bg-purple-600/30 text-purple-200 border border-purple-600/50"
+                      : "text-slate-200 hover:bg-slate-700/60 hover:text-white"
                       }`}
                   >
                     <Link to={item.path}>
