@@ -29,10 +29,19 @@ const Dashboard = () => {
 
   // Add state for transaction count
   const [txCount, setTxCount] = useState<number | null>(null);
+  const [txCountLoading, setTxCountLoading] = useState(false);
 
   useEffect(() => {
     if (!walletId) return;
-    service.getTransactionCount(walletId).then(setTxCount);
+
+    setTxCountLoading(true);
+    service.getTransactionCount(walletId)
+      .then(setTxCount)
+      .catch((error) => {
+        console.error('Error fetching transaction count:', error);
+        setTxCount(0);
+      })
+      .finally(() => setTxCountLoading(false));
   }, [walletId]);
 
   // Only show error state if wallet is not found after loading
@@ -136,7 +145,11 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                {txCount !== null ? txCount : <Skeleton className="h-8 w-8" />}
+                {txCountLoading ? (
+                  <Skeleton className="h-8 w-12" />
+                ) : (
+                  txCount !== null ? txCount : 0
+                )}
               </div>
               <p className="text-xs text-slate-400">Total transactions</p>
             </CardContent>
