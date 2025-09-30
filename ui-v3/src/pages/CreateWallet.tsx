@@ -1,36 +1,23 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
-import SecondaryButton from "@/components/ui/secondary-button";
 import { Textarea } from "@/components/ui/textarea";
+import UnifiedHeader from "@/components/UnifiedHeader";
 import { getVerifiedContracts, type ContractType } from "@/data/walletTypes";
 import { useTxServices } from "@/hooks/useTxServices";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
-import { getClientConfig } from "@/utils/chain-config";
+import { useUserWalletConnection } from "@/hooks/useWalletConnection";
 import axios from "axios";
-import { Check, ChevronDown, Clock, Globe, Plus, User, Wallet } from "lucide-react";
+import { Check, Clock, Plus, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 const CreateWallet = () => {
-  const { walletData, isWalletConnected, connectWallet, isConnecting } = useWalletConnection()
+  const { userData, isWalletConnected, connectWallet, isConnecting } = useUserWalletConnection()
   const { deployContract, isLoading, error } = useTxServices()
   const [description, setDescription] = useState("")
   const [selectedContract, setSelectedContract] = useState<ContractType>()
   const [isCreating, setIsCreating] = useState(false)
-  const [selectedNetwork, setSelectedNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
-  const [isAutoDetected, setIsAutoDetected] = useState(false)
-  const [verifiedContracts, setVerifiedContracts] = useState<ContractType[]>([])
-
-  const getConnectedWalletAddress = () => {
-    if (isWalletConnected && walletData?.addresses?.stx && walletData.addresses.stx.length > 0) {
-      const address = walletData.addresses.stx[0].address;
-      return `${address.slice(0, 6)}...${address.slice(-4)}`;
-    }
-    return "Connect Wallet";
-  };
+  const [verifiedContracts, setVerifiedContracts] = useState<ContractType[]>([]);
 
   const handleExtensionToggle = (contract: ContractType) => {
     setSelectedContract(contract)
@@ -61,133 +48,17 @@ const CreateWallet = () => {
     }
   };
 
-  const handleNetworkSwitch = (network: 'mainnet' | 'testnet') => {
-    setSelectedNetwork(network);
-    setIsAutoDetected(false); // Clear auto-detected flag when user manually switches
-  };
-
   useEffect(() => {
     async function init() {
-      const vContracts = await getVerifiedContracts(walletData?.addresses?.stx[0]?.address)
+      const vContracts = await getVerifiedContracts(userData?.addresses?.stx[0]?.address)
       setVerifiedContracts(vContracts)
     }
     init()
-  }, [walletData])
-
-  // Auto-detect network based on connected wallet address
-  useEffect(() => {
-    if (isWalletConnected && walletData?.addresses?.stx && walletData.addresses.stx.length > 0) {
-      const address = walletData.addresses.stx[0].address;
-      const config = getClientConfig(address);
-      setSelectedNetwork(config.network as 'mainnet' | 'testnet');
-      setIsAutoDetected(true);
-    } else {
-      setIsAutoDetected(false);
-    }
-  }, [isWalletConnected, walletData]);
+  }, [userData])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Simple Header */}
-      <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-2">
-              <Wallet className="h-8 w-8 text-purple-400" />
-              <span className="text-xl font-bold text-white">Smart Wallet</span>
-            </Link>
-
-            <div className="flex items-center space-x-4">
-              {/* Network Switcher */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild disabled>
-                  <SecondaryButton size="sm">
-                    <Globe className="mr-2 h-4 w-4" />
-                    <span className="hidden lg:inline">
-                      {selectedNetwork}
-                      {isAutoDetected && (
-                        <span className="ml-1 text-xs text-green-400">(auto)</span>
-                      )}
-                    </span>
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </SecondaryButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48 bg-slate-800 border-slate-700 text-white">
-                  <DropdownMenuLabel>
-                    Select Network
-                    {isAutoDetected && (
-                      <div className="text-xs text-green-400 font-normal mt-1">
-                        Auto-detected from wallet
-                      </div>
-                    )}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-slate-700" />
-                  <DropdownMenuItem
-                    className="hover:bg-slate-700 focus:bg-slate-700"
-                    onClick={() => handleNetworkSwitch('mainnet')}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>Mainnet</span>
-                      {selectedNetwork === 'mainnet' && (
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      )}
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="hover:bg-slate-700 focus:bg-slate-700"
-                    onClick={() => handleNetworkSwitch('testnet')}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>Testnet</span>
-                      {selectedNetwork === 'testnet' && (
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      )}
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Connected Wallet Profile Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SecondaryButton size="sm" >
-                    <User className="mr-2 h-4 w-4" />
-                    <span className="hidden lg:inline">{getConnectedWalletAddress()}</span>
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </SecondaryButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700 text-white">
-                  {isWalletConnected ? (
-                    <>
-                      <DropdownMenuLabel>Connected Wallet</DropdownMenuLabel>
-                      <DropdownMenuSeparator className="bg-slate-700" />
-                      <DropdownMenuItem className="hover:bg-slate-700 focus:bg-slate-700" asChild>
-                        <Link to="/wallet-selector">
-                          <Wallet className="mr-2 h-4 w-4" />
-                          Switch Wallet
-                        </Link>
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <>
-                      <DropdownMenuLabel>Wallet Not Connected</DropdownMenuLabel>
-                      <DropdownMenuSeparator className="bg-slate-700" />
-                      <DropdownMenuItem
-                        className="hover:bg-slate-700 focus:bg-slate-700"
-                        onClick={connectWallet}
-                        disabled={isConnecting}
-                      >
-                        <Wallet className="mr-2 h-4 w-4" />
-                        {isConnecting ? "Connecting..." : "Connect Wallet"}
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </header>
+      <UnifiedHeader variant="default" />
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">

@@ -1,19 +1,16 @@
 import WalletLayout from "@/components/WalletLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { History, ArrowDownLeft, ArrowUpRight, TrendingUp, Loader2, ExternalLink, X, ArrowDownRight, Clock, FileCode, RefreshCw, Send, Wallet, ArrowDownLeft as IncomingArrow, Filter } from "lucide-react";
-import { useState, useMemo } from "react";
-import { useSelectedWallet } from "@/hooks/useSelectedWallet";
-import SecondaryButton from "@/components/ui/secondary-button";
-import { TxInfo } from "@/services/types";
-import { Skeleton } from "@/components/ui/skeleton";
-import { formatAmount } from "@/lib/txFormatUtils"
-import { Link, useParams } from "react-router-dom";
-import { getClientConfig } from "@/utils/chain-config"
-import { useTransactionData } from "@/hooks/useTransactionData";
 import TransactionItem from "@/components/transactions/TransactionItem";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
+import SecondaryButton from "@/components/ui/secondary-button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useSelectedWallet } from "@/hooks/useSelectedWallet";
+import { useTransactionData } from "@/hooks/useTransactionData";
+import { TxInfo } from "@/services/types";
+import { Filter, History, Loader2, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 
 const ActionHistory = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
@@ -56,36 +53,6 @@ const ActionHistory = () => {
 
   const visibleTransactions = filteredTransactions.slice(0, displayCount);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return "text-green-400";
-      case "pending":
-        return "text-yellow-400";
-      case "failed":
-        return "text-red-400";
-      default:
-        return "text-slate-400";
-    }
-  };
-
-  const getAmountColor = (action: string) => {
-    return action === 'sent' ? "text-red-400" : "text-green-400";
-  };
-
-  const getTransactionIcon = (action: string, tx_type?: string, assetType?: string) => {
-    if (action === "sent") return Send;
-    if (assetType === "nft") return Wallet;
-    if (action === "receive") return Send;
-    if (action === "pending") return Clock;
-    if (action === "contract_call" || action === "smart_contract" || tx_type === "contract_call" || tx_type === "smart_contract") return FileCode;
-    if (action === "refresh") return RefreshCw;
-    return History;
-  };
-
-  const config = getClientConfig(walletId);
-
-
   // Helper to get a user-friendly label for each transaction type/action
   const getTxLabel = (tx: TxInfo) => {
     if (tx.action === 'sent') return 'Send';
@@ -93,10 +60,6 @@ const ActionHistory = () => {
     if (tx.action === 'contract_call') return 'Contract Call';
     if (tx.action === 'contract_deploy') return 'Contract Deploy';
     return tx.action?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Other';
-  };
-
-  const getDecimalPlaces = (symbol: string) => {
-    return assetDecimals[symbol] ?? 0;
   };
 
   return (

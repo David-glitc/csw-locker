@@ -1,5 +1,5 @@
 
-import Header from "@/components/landing/Header";
+import UnifiedHeader from "@/components/UnifiedHeader";
 import BetaNotice from "@/components/landing/BetaNotice";
 import HeroSection from "@/components/landing/HeroSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
@@ -10,7 +10,7 @@ import Footer from "@/components/landing/Footer";
 const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <Header />
+      <UnifiedHeader variant="landing" />
       <BetaNotice />
       <HeroSection />
       <FeaturesSection />

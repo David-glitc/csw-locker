@@ -1,8 +1,8 @@
-import {  useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { ReactNode, useEffect, useState } from "react";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
-import WalletHeader from "./WalletHeader";
-import MobileNavigationDrawer from "./MobileNavigationDrawer";
+import UnifiedHeader from "./UnifiedHeader";
+
 import DesktopSidebar from "./DesktopSidebar";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import useGetRates from "@/hooks/useGetRates";
@@ -16,20 +16,13 @@ const WalletLayout = ({ children }: WalletLayoutProps) => {
    const { walletId } = useParams();
    const { selectedWallet } = useSelectedWallet();
    const [selectedNetwork, setSelectedNetwork] = useState<"mainnet" | "testnet">("mainnet");
-   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
    const [networkParams, setNetworkParams] = useSearchParams();
 
    const { stxBalance, loading, error } = useAccountBalanceService(walletId)
    const { rates: stxRate, loading: loadingStxRate } = useGetRates(".stx")
 
-   const handleNetworkSwitch = (network: "mainnet" | "testnet") => {
-      setSelectedNetwork(network);
-      setNetworkParams({ network });
-   };
 
-   const handleMobileMenuToggle = () => {
-      setIsMobileMenuOpen(!isMobileMenuOpen);
-   };
 
    useEffect(() => {
       const isMainnet = walletId?.startsWith("SP") || walletId?.startsWith("SM")
@@ -46,18 +39,10 @@ const WalletLayout = ({ children }: WalletLayoutProps) => {
 
    return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-         <WalletHeader
+         <UnifiedHeader
+            variant="wallet-management"
             currentWallet={currentWallet}
             selectedNetwork={selectedNetwork}
-            onNetworkSwitch={handleNetworkSwitch}
-            onMobileMenuToggle={handleMobileMenuToggle}
-         />
-
-         <MobileNavigationDrawer
-            isOpen={isMobileMenuOpen}
-            onOpenChange={setIsMobileMenuOpen}
-            currentWallet={currentWallet}
-            walletId={walletId}
          />
 
          <div className="container mx-auto px-4 py-8">

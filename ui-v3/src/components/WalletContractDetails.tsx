@@ -9,8 +9,10 @@ import { formatAbi } from "@/utils/formatAbi";
 import { FileText, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import PrimaryButton from "./ui/primary-button";
+import { getClientConfig } from "@/utils/chain-config";
 
 const WalletContractDetails = ({ walletId }: { walletId: `${string}.${string}` }) => {
+    const network = getClientConfig(walletId).network
     const { contractDetails, contractAbi, contractDetailsErr } = useContractDetails(walletId)
 
     if (!contractDetails || !contractAbi || contractDetailsErr) {
@@ -74,7 +76,7 @@ const WalletContractDetails = ({ walletId }: { walletId: `${string}.${string}` }
                 />
                 <div className="flex justify-end mt-4">
                     <SecondaryButton>
-                        <Link to={`https://explorer.hiro.so/txid/${contractDetails.tx_id}?chain=testnet`} target="_blank">
+                        <Link to={`https://explorer.hiro.so/txid/${contractDetails.tx_id}?chain=${network}`} target="_blank">
                             View on Explorer
                         </Link>
                     </SecondaryButton>

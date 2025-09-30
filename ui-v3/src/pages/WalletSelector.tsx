@@ -1,11 +1,11 @@
 import PrimaryButton from "@/components/ui/primary-button";
 import { Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
+import { useUserWalletConnection } from "@/hooks/useWalletConnection";
 import { useSmartWalletContractService } from "@/hooks/useSmartWalletContractService";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import WalletSelectorHeader from "@/components/wallet-selector/WalletSelectorHeader";
+import UnifiedHeader from "@/components/UnifiedHeader";
 import WalletCard from "@/components/wallet-selector/WalletCard";
 import EmptyWalletState from "@/components/wallet-selector/EmptyWalletState";
 import LoadingState from "@/components/wallet-selector/LoadingState";
@@ -18,19 +18,19 @@ import useGetRates from "@/hooks/useGetRates";
 import { MockAccountBalanceService } from "@/services/mocks/mockAccountBalanceService";
 import { MockSmartWalletContractService } from "@/services/mocks/mockSmartWalletContractService";
 
+
 const WalletSelector = () => {
   // State management
   const [isDemoMode, setIsDemo] = useState<boolean>(false);
-  const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
   const [walletsToShow, setWalletsToShow] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
   const [importedWallets, setImportedWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
   const [demoBalance, setDemoBalance] = useState<any>(null);
   const [demoWallets, setDemoWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
 
   // Hooks
-  const { walletData, isWalletConnected } = useWalletConnection();
-  const { deployedContracts, deployedContractCount, hasSmartWallets, hasExtensions, loading: deployedContractsLoading, error: deployedContractsError } = useSmartWalletContractService(walletData?.addresses.stx?.[0]?.address);
-  const { stxBalance, loading: balanceLoading } = useAccountBalanceService(walletData?.addresses.stx?.[0]?.address);
+  const { userData } = useUserWalletConnection();
+  const { deployedContracts, hasSmartWallets, hasExtensions, loading: deployedContractsLoading, error: deployedContractsError } = useSmartWalletContractService(userData?.addresses.stx?.[0]?.address);
+  const { stxBalance, loading: balanceLoading } = useAccountBalanceService(userData?.addresses.stx?.[0]?.address);
   const { loading: rateLoading, usdPrice } = useGetRates('.stx');
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -136,7 +136,8 @@ const WalletSelector = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <WalletSelectorHeader
+      <UnifiedHeader
+        variant="wallet-selector"
         totalBalance={totalBalance}
         usdValue={usdValue}
       />
@@ -265,6 +266,7 @@ const WalletSelector = () => {
               )}
         </div>
       </div>
+
     </div>
   );
 };

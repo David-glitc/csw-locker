@@ -1,8 +1,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wallet, Send, History, ArrowDown, ArrowUp, Plug, FileTextIcon, CheckSquare, Puzzle, ScrollText } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { getNavItemsWithStacking } from "@/lib/const";
 
 interface DesktopSidebarProps {
   currentWallet: {
@@ -23,24 +23,7 @@ const DesktopSidebar = ({ currentWallet, walletId }: DesktopSidebarProps) => {
     ext.toLowerCase().includes('stacking') || ext.toLowerCase().includes('stack')
   );
 
-  const baseNavItems = [
-    { path: `/dashboard/${walletId}`, label: "Dashboard", icon: Wallet },
-    { path: `/send/${walletId}`, label: "Send", icon: Send },
-    { path: `/receive/${walletId}`, label: "Receive", icon: ArrowDown },
-    { path: `/actions/${walletId}`, label: "Extensions", icon: Puzzle },
-    { path: `/contract-actions/${walletId}`, label: "Contract Actions", icon: CheckSquare },
-    { path: `/history/${walletId}`, label: "History", icon: History },
-    { path: `/wallet-details/${walletId}`, label: "Wallet Details", icon: ScrollText },
-  ];
-
-  // Add stacking item only if extension is active
-  const navItems = isStackingActive
-    ? [
-      ...baseNavItems.slice(0, 3), // Dashboard, Send, Receive
-      { path: `/stacking/${walletId}`, label: "Stacking", icon: ArrowUp },
-      ...baseNavItems.slice(3) // Actions, Contract Actions, History, Contract Details
-    ]
-    : baseNavItems;
+  const navItems = getNavItemsWithStacking(walletId, isStackingActive);
 
   return (
     <div className="lg:col-span-1 hidden lg:block">

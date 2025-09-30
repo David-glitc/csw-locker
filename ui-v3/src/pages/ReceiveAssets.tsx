@@ -14,7 +14,7 @@ import { getClientConfig } from "@/utils/chain-config";
 import PrimaryButton from "@/components/ui/primary-button";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import { useTxServices } from "@/hooks/useTxServices";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
+import { useUserWalletConnection } from "@/hooks/useWalletConnection";
 import { AccountBalanceService } from "@/services/accountBalanceService";
 import { Switch } from "@/components/ui/switch";
 import { formatClarityValues } from "@/utils/formartClarityValues";
@@ -99,7 +99,7 @@ const NftItemCard = ({ item, isSelected, onSelect, onFetchMetadata, delay = 0 }:
 
 const ReceiveAssets = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
-  const { walletData } = useWalletConnection()
+  const { userData } = useUserWalletConnection()
   const {
     loading: balanceLoading,
     error: balanceError,
@@ -117,7 +117,7 @@ const ReceiveAssets = () => {
     fetchNftItemsMetadata,
     fetchSingleNftItemMetadata,
     loadMoreNftHoldings
-  } = useAccountBalanceService(walletData?.addresses.stx[0]?.address)
+  } = useAccountBalanceService(userData?.addresses.stx[0]?.address)
   // walletData?.addresses.stx[0]?.address
   const { deposit } = useTxServices();
 
@@ -327,7 +327,7 @@ const ReceiveAssets = () => {
     setIsDepositing(true);
     try {
       const result = await deposit({
-        from: walletData?.addresses.stx[0]?.address,
+        from: userData?.addresses.stx[0]?.address,
         to: walletId,
         amount: depositAmount,
         asset: isNftMode ? (selectedNftItem?.metadata?.metadata?.name || selectedToken?.symbol) : selectedToken?.symbol || "",

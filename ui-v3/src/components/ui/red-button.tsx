@@ -13,10 +13,11 @@ const RedButton = React.forwardRef<HTMLButtonElement, RedButtonProps>(
       <Button
         ref={ref}
         className={cn(
-          disabled ? "border-red-600 bg-red-700/20 opacity-60 cursor-not-allowed hover:bg-red-700/20" :
-            "bg-red-600 hover:bg-red-700 text-white",
+          disabled ? "border-red-600/50 bg-red-600/10 text-red-400/60 opacity-60 cursor-not-allowed hover:bg-red-600/10" :
+            "border-red-600/50 text-red-400 hover:bg-red-600/10 hover:text-red-300 hover:border-red-500",
           className
         )}
+        variant="outline"
         disabled={disabled}
         {...props}
       >

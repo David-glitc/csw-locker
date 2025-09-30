@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Copy, Check, Coins, Image } from "lucide-react";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import { useTxServices } from "@/hooks/useTxServices";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
+import { useUserWalletConnection } from "@/hooks/useWalletConnection";
 import { AccountBalanceService } from "@/services/accountBalanceService";
 import { formatClarityValues } from "@/utils/formartClarityValues";
 import { getClientConfig } from "@/utils/chain-config";
@@ -100,7 +100,7 @@ interface DepositModalProps {
 }
 
 const DepositModal = ({ isOpen, onClose, walletId, onSuccess, onError }: DepositModalProps) => {
-  const { walletData } = useWalletConnection();
+  const { userData: walletData } = useUserWalletConnection();
   const {
     loading: balanceLoading,
     error: balanceError,
@@ -119,7 +119,7 @@ const DepositModal = ({ isOpen, onClose, walletId, onSuccess, onError }: Deposit
     fetchSingleNftItemMetadata,
     loadMoreNftHoldings
   } = useAccountBalanceService(walletData?.addresses.stx[0]?.address);
-  
+
   const { deposit } = useTxServices();
 
   const [depositAmount, setDepositAmount] = useState("");
@@ -391,8 +391,8 @@ const DepositModal = ({ isOpen, onClose, walletId, onSuccess, onError }: Deposit
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-1 bg-slate-700/50 p-1 rounded-xl border border-slate-600 hover:border-slate-500 transition-all duration-300">
                 <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${!isNftMode
-                    ? 'bg-green-600/20 text-green-400 border border-green-500/30 shadow-lg shadow-green-500/20'
-                    : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
+                  ? 'bg-green-600/20 text-green-400 border border-green-500/30 shadow-lg shadow-green-500/20'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
                   }`}
                   onClick={() => setIsNftMode(false)}
                 >
@@ -405,8 +405,8 @@ const DepositModal = ({ isOpen, onClose, walletId, onSuccess, onError }: Deposit
                   className="data-[state=checked]:bg-purple-600 data-[state=unchecked]:bg-slate-600 transition-all duration-300 mx-1"
                 />
                 <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${isNftMode
-                    ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/20'
-                    : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
+                  ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/20'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-600/50'
                   }`}
                   onClick={() => setIsNftMode(true)}
                 >
