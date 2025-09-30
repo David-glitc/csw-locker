@@ -1,31 +1,28 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
-    DropdownMenuTrigger,
+    DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import {
-    MenuIcon,
-    Wallet,
-    User,
-    Globe,
-    Settings,
-    ChevronDown,
-    Menu,
-    LogOut
-} from "lucide-react";
-import { Link } from "react-router-dom";
 import { useUserWalletConnection } from "@/hooks/useWalletConnection";
-import GreenButton from "./ui/green-button";
-import SecondaryButton from "./ui/secondary-button";
-import PrimaryButton from "./ui/primary-button";
-import UnifiedMobileDrawer from "./UnifiedMobileDrawer";
 import { DOCS_URL } from "@/lib/const";
+import {
+    ChevronDown,
+    Globe,
+    LogOut,
+    Menu,
+    MenuIcon,
+    Settings,
+    User,
+    Wallet
+} from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import GreenButton from "./ui/green-button";
+import PrimaryButton from "./ui/primary-button";
+import SecondaryButton from "./ui/secondary-button";
+import UnifiedMobileDrawer from "./UnifiedMobileDrawer";
 
 export type HeaderVariant = "default" | "landing" | "wallet-selector" | "wallet-management";
 
@@ -47,7 +44,7 @@ interface WalletSelectorHeaderProps extends BaseHeaderProps {
     usdValue: string;
 }
 
-interface WalletManagementHeaderProps extends BaseHeaderProps {
+export interface WalletManagementHeaderProps extends BaseHeaderProps {
     variant: "wallet-management";
     currentWallet: {
         name: string;
@@ -58,7 +55,7 @@ interface WalletManagementHeaderProps extends BaseHeaderProps {
     selectedNetwork: "mainnet" | "testnet";
 }
 
-type UnifiedHeaderProps = DefaultHeaderProps | LandingHeaderProps | WalletSelectorHeaderProps | WalletManagementHeaderProps;
+export type UnifiedHeaderProps = DefaultHeaderProps | LandingHeaderProps | WalletSelectorHeaderProps | WalletManagementHeaderProps;
 
 const UnifiedHeader = (props: UnifiedHeaderProps) => {
     const { variant } = props;
@@ -291,14 +288,11 @@ const UnifiedHeader = (props: UnifiedHeaderProps) => {
                 isOpen={mobileMenuOpen}
                 onOpenChange={setMobileMenuOpen}
                 variant={variant}
-                totalBalance={variant === "wallet-selector" ? (props as WalletSelectorHeaderProps).totalBalance : undefined}
-                usdValue={variant === "wallet-selector" ? (props as WalletSelectorHeaderProps).usdValue : undefined}
-                currentSmartWallet={variant === "wallet-management" ? (props as WalletManagementHeaderProps).currentWallet : undefined}
+                props={props}
                 isWalletConnected={isWalletConnected}
                 onWalletConnect={connectWallet}
                 onWalletDisconnect={disconnectWallet}
                 isConnecting={isConnecting}
-                connectButtonText="Connect Wallet"
                 userData={userData}
             />
         </header>

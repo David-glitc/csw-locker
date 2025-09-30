@@ -7,6 +7,7 @@ import DesktopSidebar from "./DesktopSidebar";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
 import useGetRates from "@/hooks/useGetRates";
 import { formatNumber } from "@/utils/numbers";
+import { getClientConfig } from "@/utils/chain-config";
 
 interface WalletLayoutProps {
    children: ReactNode;
@@ -15,20 +16,9 @@ interface WalletLayoutProps {
 const WalletLayout = ({ children }: WalletLayoutProps) => {
    const { walletId } = useParams();
    const { selectedWallet } = useSelectedWallet();
-   const [selectedNetwork, setSelectedNetwork] = useState<"mainnet" | "testnet">("mainnet");
-
-   const [networkParams, setNetworkParams] = useSearchParams();
-
    const { stxBalance, loading, error } = useAccountBalanceService(walletId)
    const { rates: stxRate, loading: loadingStxRate } = useGetRates(".stx")
 
-
-
-   useEffect(() => {
-      const isMainnet = walletId?.startsWith("SP") || walletId?.startsWith("SM")
-      setSelectedNetwork(isMainnet ? "mainnet" : "testnet");
-      setNetworkParams({ network: isMainnet ? "mainnet" : "testnet" });
-   }, [networkParams, setNetworkParams]);
 
    const currentWallet = {
       name: selectedWallet?.name,
@@ -36,6 +26,7 @@ const WalletLayout = ({ children }: WalletLayoutProps) => {
       balance: stxBalance ? `${Number(formatNumber(+stxBalance?.balance, stxBalance?.decimal)).toFixed(4) ?? '0.0000'}` : "0.0000",
       usdValue: stxBalance && stxRate ? `$${formatNumber(+stxBalance?.balance * +stxRate?.usdPrice, 2)}` : "..."
    };
+   const selectedNetwork = getClientConfig(walletId)?.network
 
    return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">

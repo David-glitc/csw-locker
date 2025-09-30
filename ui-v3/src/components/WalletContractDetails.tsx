@@ -1,15 +1,11 @@
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import SecondaryButton from "@/components/ui/secondary-button";
 import { Textarea } from "@/components/ui/textarea";
 import useContractDetails from "@/hooks/useContractDetails";
-import { formatAbi } from "@/utils/formatAbi";
-import { FileText, Wallet } from "lucide-react";
-import { Link } from "react-router-dom";
-import PrimaryButton from "./ui/primary-button";
 import { getClientConfig } from "@/utils/chain-config";
+import { FileText } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const WalletContractDetails = ({ walletId }: { walletId: `${string}.${string}` }) => {
     const network = getClientConfig(walletId).network

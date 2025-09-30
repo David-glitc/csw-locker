@@ -18,6 +18,7 @@ import PrimaryButton from "./ui/primary-button";
 import RedButton from "./ui/red-button";
 import { DOCS_URL, getNavItemsWithStacking } from "@/lib/const";
 import { Star, Package, Info, FileText, Home } from "lucide-react";
+import { UnifiedHeaderProps, WalletManagementHeaderProps } from "./UnifiedHeader";
 
 interface SmartWalletInfo {
     name?: string;
@@ -35,6 +36,7 @@ interface UnifiedMobileDrawerProps {
     // Header context information
     variant: "default" | "landing" | "wallet-selector" | "wallet-management";
 
+    props: UnifiedHeaderProps;
     // Wallet selector props
     totalBalance?: string;
     usdValue?: string;
@@ -60,15 +62,15 @@ const UnifiedMobileDrawer = ({
     isOpen,
     onOpenChange,
     variant,
-    currentSmartWallet,
     isWalletConnected,
     onWalletConnect,
     onWalletDisconnect,
     isConnecting = false,
-    connectButtonText = "Connect Wallet",
     userData,
+    props
 }: UnifiedMobileDrawerProps) => {
     const location = useLocation();
+    const currentSmartWallet = variant === "wallet-management" ? (props as WalletManagementHeaderProps).currentWallet : undefined;
 
     // Create navigation items based on context
     const getNavItems = () => {
@@ -166,7 +168,7 @@ const UnifiedMobileDrawer = ({
             return `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
         }
         if (isWalletConnected) return "Connected";
-        return connectButtonText;
+        return "Connect Wallet";
     };
 
     const formatAddress = (address: string) => {

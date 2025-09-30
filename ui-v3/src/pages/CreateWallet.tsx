@@ -1,12 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
-import { Textarea } from "@/components/ui/textarea";
 import UnifiedHeader from "@/components/UnifiedHeader";
 import { getVerifiedContracts, type ContractType } from "@/data/walletTypes";
 import { useTxServices } from "@/hooks/useTxServices";
 import { useUserWalletConnection } from "@/hooks/useWalletConnection";
+import { getClientConfig } from "@/utils/chain-config";
 import axios from "axios";
 import { Check, Clock, Plus, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -14,17 +13,20 @@ import { useEffect, useState } from "react";
 const CreateWallet = () => {
   const { userData, isWalletConnected, connectWallet, isConnecting } = useUserWalletConnection()
   const { deployContract, isLoading, error } = useTxServices()
-  const [description, setDescription] = useState("")
   const [selectedContract, setSelectedContract] = useState<ContractType>()
   const [isCreating, setIsCreating] = useState(false)
   const [verifiedContracts, setVerifiedContracts] = useState<ContractType[]>([]);
+
+  const userAddress = userData?.addresses?.stx[0]?.address
 
   const handleExtensionToggle = (contract: ContractType) => {
     setSelectedContract(contract)
   };
 
   const handleCreateWallet = async () => {
-    if (!selectedContract) {
+    const { network } = getClientConfig(userAddress);
+
+    if (!selectedContract || !network) {
       return;
     }
 
@@ -32,7 +34,7 @@ const CreateWallet = () => {
 
     try {
       // Fetch the Clarity code from the contract source
-      const clarityCode: string = (await axios.get(selectedContract.src)).data;
+      const clarityCode: string = (await axios.get(`/clarity/${network}/${selectedContract.src}`)).data;
 
       // Deploy the contract using the useTxServices hook
       await deployContract({
@@ -50,11 +52,17 @@ const CreateWallet = () => {
 
   useEffect(() => {
     async function init() {
-      const vContracts = await getVerifiedContracts(userData?.addresses?.stx[0]?.address)
+      if (!userAddress) return;
+      const vContracts = await getVerifiedContracts(userAddress)
       setVerifiedContracts(vContracts)
+
+      const smartWalletContracts = vContracts.filter(c => c.name === 'smart-wallet')
+      if (smartWalletContracts.length > 0 && !smartWalletContracts[0].isDeployed) {
+        setSelectedContract(smartWalletContracts[0])
+      }
     }
     init()
-  }, [userData])
+  }, [userAddress])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -74,30 +82,100 @@ const CreateWallet = () => {
               <CardHeader>
                 <CardTitle className="text-white flex items-center">
                   <Wallet className="mr-2 h-5 w-5 text-purple-400" />
-                  Wallet Configuration
+                  Select Wallet Type
                 </CardTitle>
+                <p className="text-slate-400 text-sm">Choose a wallet contract to deploy</p>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-slate-300 text-sm">Wallet Name</label>
-                  <Input
-                    disabled
-                    value={selectedContract?.name}
-                    placeholder="e.g., My Personal Wallet"
-                    className="bg-slate-700/50 border-slate-600 text-white mt-1"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 text-sm">Description (Optional)</label>
-                  <Textarea
-                    disabled
-                    value={selectedContract?.description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Brief description of this wallet's purpose..."
-                    className="bg-slate-700/50 border-slate-600 text-white mt-1"
-                    rows={3}
-                  />
+              <CardContent>
+                <div className="space-y-3">
+                  {verifiedContracts.filter((contract) => !contract.ext).map((contract) => (
+                    <div
+                      key={contract.name}
+                      className={`p-4 rounded-lg border transition-all duration-200 ${contract.isDeployed
+                        ? "border-green-600/50 bg-green-900/20 cursor-not-allowed"
+                        : contract.comingSoon
+                          ? "border-slate-600 bg-slate-700/20 opacity-60 cursor-not-allowed"
+                          : selectedContract?.name === contract.name
+                            ? "border-purple-600/50 bg-purple-600/10 cursor-pointer hover:bg-purple-600/15"
+                            : "border-slate-600 bg-slate-700/30 hover:border-slate-500 hover:bg-slate-700/40 cursor-pointer"
+                        }`}
+                      onClick={contract.isDeployed || contract.comingSoon ? undefined : () => handleExtensionToggle(contract)}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="mt-1">
+                          {contract.isDeployed ? (
+                            <div className="w-5 h-5 rounded-full bg-green-600/20 border border-green-600/50 flex items-center justify-center">
+                              <Check className="h-3 w-3 text-green-400" />
+                            </div>
+                          ) : (
+                            <Checkbox
+                              checked={selectedContract?.name === contract.name}
+                              disabled={contract.comingSoon}
+                              onChange={() => handleExtensionToggle(contract)}
+                            />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-lg">{contract.icon}</span>
+                              <div>
+                                <span className={`font-medium block ${contract.isDeployed
+                                  ? 'text-green-300'
+                                  : contract.comingSoon
+                                    ? 'text-slate-400'
+                                    : 'text-white'
+                                  }`}>
+                                  {contract.label || contract.name}
+                                </span>
+                                <span className={`text-xs font-mono ${contract.isDeployed
+                                  ? 'text-green-400/70'
+                                  : contract.comingSoon
+                                    ? 'text-slate-500'
+                                    : 'text-slate-400'
+                                  }`}>
+                                  {contract.name}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {contract.isDeployed && (
+                                <div className="flex items-center space-x-1 px-2 py-1 bg-green-600/20 border border-green-600/30 rounded-full">
+                                  <Check className="h-3 w-3 text-green-400" />
+                                  <span className="text-xs text-green-300 font-medium">Deployed</span>
+                                </div>
+                              )}
+                              {contract.comingSoon && (
+                                <div className="flex items-center space-x-1 px-2 py-1 bg-slate-600/50 rounded-full">
+                                  <Clock className="h-3 w-3 text-slate-400" />
+                                  <span className="text-xs text-slate-400">Coming Soon</span>
+                                </div>
+                              )}
+                              {selectedContract?.name === contract.name && !contract.comingSoon && !contract.isDeployed && (
+                                <div className="flex items-center space-x-1 px-2 py-1 bg-purple-600/20 border border-purple-600/30 rounded-full">
+                                  <Check className="h-3 w-3 text-purple-400" />
+                                  <span className="text-xs text-purple-300 font-medium">Selected</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <p className={`text-sm mt-2 ${contract.isDeployed
+                            ? 'text-green-200/80'
+                            : contract.comingSoon
+                              ? 'text-slate-500'
+                              : 'text-slate-400'
+                            }`}>
+                            {contract.description}
+                          </p>
+                          {contract.isDeployed && (
+                            <p className="text-xs text-green-400/70 mt-1">
+                              This wallet contract is already deployed and active.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {error && (
@@ -143,18 +221,30 @@ const CreateWallet = () => {
                 )}
 
                 {isWalletConnected && (
-                  <div className="pt-4">
+                  <div className="pt-4 space-y-3">
+                    {selectedContract?.isDeployed && (
+                      <div className="bg-green-900/20 border border-green-600/50 rounded-lg p-3">
+                        <p className="text-green-300 text-sm font-medium">
+                          Contract Already Deployed
+                        </p>
+                        <p className="text-green-200/80 text-xs mt-1">
+                          This wallet contract is already active and cannot be deployed again.
+                        </p>
+                      </div>
+                    )}
                     <PrimaryButton
                       onClick={handleCreateWallet}
-                      disabled={isCreating || isLoading || !selectedContract}
+                      disabled={isCreating || isLoading || !selectedContract || selectedContract.isDeployed}
                       className="w-full"
                     >
                       {isCreating || isLoading ? (
                         "Creating Wallet..."
+                      ) : selectedContract?.isDeployed ? (
+                        "Contract Already Deployed"
                       ) : (
                         <>
                           <Plus className="mr-2 h-4 w-4" />
-                          Create Smart Wallet
+                          Deploy Smart Wallet
                         </>
                       )}
                     </PrimaryButton>
@@ -171,43 +261,80 @@ const CreateWallet = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {verifiedContracts.map((contract) => (
+                  {verifiedContracts.filter((contract) => contract.ext).map((contract) => (
                     <div
                       key={contract.name}
-                      className={`p-3 rounded-lg border transition-colors ${contract.comingSoon
-                        ? "border-slate-600 bg-slate-700/20 opacity-60 cursor-not-allowed"
-                        : selectedContract?.name === contract.name
-                          ? "border-purple-600/50 bg-purple-600/10 cursor-pointer"
-                          : "border-slate-600 bg-slate-700/30 hover:border-slate-500 cursor-pointer"
+                      className={`p-4 rounded-lg border transition-all duration-200 ${contract.isDeployed
+                        ? "border-green-600/50 bg-green-900/20 cursor-not-allowed"
+                        : contract.comingSoon
+                          ? "border-slate-600 bg-slate-700/20 opacity-60 cursor-not-allowed"
+                          : selectedContract?.name === contract.name
+                            ? "border-purple-600/50 bg-purple-600/10 cursor-pointer hover:bg-purple-600/15"
+                            : "border-slate-600 bg-slate-700/30 hover:border-slate-500 hover:bg-slate-700/40 cursor-pointer"
                         }`}
-                      onClick={contract.isDeployed ? null : () => handleExtensionToggle(contract)}
+                      onClick={contract.isDeployed || contract.comingSoon ? undefined : () => handleExtensionToggle(contract)}
                     >
                       <div className="flex items-start space-x-3">
-                        <Checkbox
-                          checked={selectedContract?.name === contract.name}
-                          disabled={contract.isDeployed}
-                          onChange={() => handleExtensionToggle(contract)}
-                          className="mt-1"
-                        />
+                        <div className="mt-1">
+                          {contract.isDeployed ? (
+                            <div className="w-5 h-5 rounded-full bg-green-600/20 border border-green-600/50 flex items-center justify-center">
+                              <Check className="h-3 w-3 text-green-400" />
+                            </div>
+                          ) : (
+                            <Checkbox
+                              checked={selectedContract?.name === contract.name}
+                              disabled={contract.comingSoon}
+                              onChange={() => handleExtensionToggle(contract)}
+                            />
+                          )}
+                        </div>
                         <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg">{contract.icon}</span>
-                            <span className={`font-medium ${contract.comingSoon ? 'text-slate-400' : 'text-white'}`}>
-                              {contract.name}
-                            </span>
-                            {contract.comingSoon && (
-                              <div className="flex items-center space-x-1 px-2 py-1 bg-slate-600/50 rounded-full">
-                                <Clock className="h-3 w-3 text-slate-400" />
-                                <span className="text-xs text-slate-400">Coming Soon</span>
-                              </div>
-                            )}
-                            {selectedContract?.name === contract.name && !contract.comingSoon && (
-                              <Check className="h-4 w-4 text-green-400" />
-                            )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-lg">{contract.icon}</span>
+                              <span className={`font-medium ${contract.isDeployed
+                                ? 'text-green-300'
+                                : contract.comingSoon
+                                  ? 'text-slate-400'
+                                  : 'text-white'
+                                }`}>
+                                {contract.label || contract.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {contract.isDeployed && (
+                                <div className="flex items-center space-x-1 px-2 py-1 bg-green-600/20 border border-green-600/30 rounded-full">
+                                  <Check className="h-3 w-3 text-green-400" />
+                                  <span className="text-xs text-green-300 font-medium">Deployed</span>
+                                </div>
+                              )}
+                              {contract.comingSoon && (
+                                <div className="flex items-center space-x-1 px-2 py-1 bg-slate-600/50 rounded-full">
+                                  <Clock className="h-3 w-3 text-slate-400" />
+                                  <span className="text-xs text-slate-400">Coming Soon</span>
+                                </div>
+                              )}
+                              {selectedContract?.name === contract.name && !contract.comingSoon && !contract.isDeployed && (
+                                <div className="flex items-center space-x-1 px-2 py-1 bg-purple-600/20 border border-purple-600/30 rounded-full">
+                                  <Check className="h-3 w-3 text-purple-400" />
+                                  <span className="text-xs text-purple-300 font-medium">Selected</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <p className={`text-sm mt-1 ${contract.comingSoon ? 'text-slate-500' : 'text-slate-400'}`}>
+                          <p className={`text-sm mt-2 ${contract.isDeployed
+                            ? 'text-green-200/80'
+                            : contract.comingSoon
+                              ? 'text-slate-500'
+                              : 'text-slate-400'
+                            }`}>
                             {contract.description}
                           </p>
+                          {contract.isDeployed && (
+                            <p className="text-xs text-green-400/70 mt-1">
+                              This extension is already deployed and active on your wallet.
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -216,27 +343,6 @@ const CreateWallet = () => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Summary */}
-
-          <Card className="bg-blue-900/20 border-blue-700/50">
-            <CardContent className="p-6">
-              <h3 className="text-blue-300 font-medium mb-3">Creation Summary</h3>
-              <div className="space-y-2 text-sm">
-                <div className="text-blue-200">
-                  <span className="text-blue-300">Name:</span> {selectedContract?.label}
-                </div>
-
-                <div className="text-blue-200">
-                  <span className="text-blue-300">Contract Name:</span> {selectedContract?.name}
-                </div>
-
-                <div className="text-blue-200">
-                  <span className="text-blue-300">Estimated Gas:</span> ~0.05 STX
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
         </div>
       </div>
