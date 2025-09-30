@@ -1,20 +1,18 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Wallet, Plus, Check, Clock, User, Globe, ChevronDown } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useNavigate, Link, useParams } from "react-router-dom";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useWalletConnection } from "@/hooks/useWalletConnection";
-import SecondaryButton from "@/components/ui/secondary-button";
+import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
-import { ContractTypes, getVerifiedContracts, type ContractType } from "@/data/walletTypes";
-import { BlockchainService } from "@/services/blockchainService";
+import SecondaryButton from "@/components/ui/secondary-button";
+import { Textarea } from "@/components/ui/textarea";
+import { getVerifiedContracts, type ContractType } from "@/data/walletTypes";
 import { useTxServices } from "@/hooks/useTxServices";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { getClientConfig } from "@/utils/chain-config";
 import axios from "axios";
+import { Check, ChevronDown, Clock, Globe, Plus, User, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 const CreateWallet = () => {
   const { walletData, isWalletConnected, connectWallet, isConnecting } = useWalletConnection()
@@ -148,7 +146,7 @@ const CreateWallet = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              
+
               {/* Connected Wallet Profile Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

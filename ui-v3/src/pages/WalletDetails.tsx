@@ -1,27 +1,26 @@
 import WalletLayout from "@/components/WalletLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import SecondaryButton from "@/components/ui/secondary-button"; // Add this import if not present
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Settings, Plus, Trash2, Copy, Check } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { handleCCS } from "@/services/smartWalletContractService";
-import { useBlockchainService } from "@/hooks/useBlockchainService";
-import GreenButton from "@/components/ui/green-button";
-import PrimaryButton from "@/components/ui/primary-button";
-import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
-import { formatNumber } from "@/utils/numbers";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
-import { useTxServices } from "@/hooks/useTxServices";
+import GreenButton from "@/components/ui/green-button";
+import PrimaryButton from "@/components/ui/primary-button";
 import RedButton from "@/components/ui/red-button";
+import SecondaryButton from "@/components/ui/secondary-button"; // Add this import if not present
+import { useToast } from "@/hooks/use-toast";
+import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
+import { useTxServices } from "@/hooks/useTxServices";
+import { handleCCS } from "@/services/smartWalletContractService";
+import { formatNumber } from "@/utils/numbers";
+import { Check, Copy, Plus, Settings, Trash2, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 
 type WalletInfo = {
   smart_contract?: {
