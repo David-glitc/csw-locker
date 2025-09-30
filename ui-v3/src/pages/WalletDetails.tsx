@@ -175,7 +175,7 @@ const WalletDetails = () => {
               <Wallet className="mr-2 h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
               <span className="hidden sm:inline">
                 {/* {walletInfo?.smart_contract?.contract_id || walletId || */}
-                "Personal Smart Wallet"
+                Personal Wallet
               </span>
               <span className="sm:hidden">Smart Wallet</span>
             </CardTitle>

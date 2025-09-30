@@ -57,7 +57,7 @@ const Products = () => {
 
         {/* Products Grid */}
         <div className="grid lg:grid-cols-2 gap-12 mb-16">
-          {/* Personal Smart Wallet */}
+          {/* Personal Wallet */}
           <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm overflow-hidden flex flex-col h-full">
             <CardHeader className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-slate-700">
               <div className="flex items-center space-x-3">
@@ -65,7 +65,7 @@ const Products = () => {
                   <Wallet className="h-6 w-6 text-purple-400" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-white">Personal Smart Wallet</CardTitle>
+                  <CardTitle className="text-2xl text-white">Personal Wallet</CardTitle>
                   <p className="text-slate-400">For individual users and families</p>
                 </div>
               </div>

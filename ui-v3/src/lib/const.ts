@@ -10,7 +10,7 @@ export const ContractTypes: SmartWalletTypes[] = [
   {
     label: "Personal Wallet",
     name: "smart-wallet",
-    extensions: ["Multi-sig", "Delegate STX"],
+    extensions: ["Delegate STX"],
     ext: false,
     recomended: true,
   },
