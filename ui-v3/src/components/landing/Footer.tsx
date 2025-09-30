@@ -3,6 +3,13 @@ import { Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Footer = () => {
+  const scrollToFeatures = () => {
+    const featuresSection = document.getElementById('features-section');
+    if (featuresSection) {
+      featuresSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <footer className="bg-slate-900/80 border-t border-slate-800/50">
       <div className="container mx-auto px-4 py-12">
@@ -20,9 +27,8 @@ const Footer = () => {
           <div className="space-y-4">
             <h3 className="text-white font-semibold">Product</h3>
             <ul className="space-y-2">
-              <li><Link to="/dashboard" className="text-slate-400 hover:text-white text-sm transition-colors">Dashboard</Link></li>
-              <li><Link to="/" className="text-slate-400 hover:text-white text-sm transition-colors">Features</Link></li>
-              <li><Link to="/" className="text-slate-400 hover:text-white text-sm transition-colors">Documentation</Link></li>
+              <li><Link to="/wallet-selector" className="text-slate-400 hover:text-white text-sm transition-colors">Dashboard</Link></li>
+              <li><button onClick={scrollToFeatures} className="text-slate-400 hover:text-white text-sm transition-colors">Features</button></li>
             </ul>
           </div>
 
