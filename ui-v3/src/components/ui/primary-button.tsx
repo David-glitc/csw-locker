@@ -17,6 +17,7 @@ const PrimaryButton = React.forwardRef<HTMLButtonElement, PrimaryButtonProps>(
             "bg-purple-600 hover:bg-purple-700 text-white",
           className
         )}
+        disabled={disabled}
         {...props}
       >
         {children}

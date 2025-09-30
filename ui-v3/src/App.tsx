@@ -18,6 +18,7 @@ import ContractActions from "./pages/ContractActions";
 import ActionHistory from "./pages/ActionHistory";
 import ContractDetails from "./pages/ContractDetails";
 import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 import About from "./pages/About";
 import Products from "./pages/Products";
 import NotFound from "./pages/NotFound";
@@ -45,8 +46,8 @@ const App = () => (
             <Route path="/history/:walletId?" element={<ActionHistory />} />
             <Route path="/actions/:walletId?" element={<GenericActions />} />
             <Route path="/contract-actions/:walletId?" element={<ContractActions />} />
-            <Route path="/contract-details/:walletId?" element={<ContractDetails />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </WalletProvider>

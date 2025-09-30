@@ -20,9 +20,9 @@ const About = () => {
               <SecondaryButton asChild >
                 <Link to="/">Home</Link>
               </SecondaryButton>
-              <PrimaryButton asChild >
+              <SecondaryButton asChild >
                 <Link to="/products">View Products</Link>
-              </PrimaryButton>
+              </SecondaryButton>
             </div>
           </nav>
         </div>

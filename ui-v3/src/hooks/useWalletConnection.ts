@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
-import { connect, disconnect, isConnected, getLocalStorage, } from "@stacks/connect";
+import {
+  connect,
+  disconnect,
+  isConnected,
+  getLocalStorage,
+} from "@stacks/connect";
 import { useNavigate } from "react-router-dom";
 // Define the wallet data interface based on what @stacks/connect actually returns
-interface WalletData {
+interface UserWalletData {
   addresses: {
     stx: Array<{
       address: string;
@@ -17,11 +22,11 @@ interface WalletData {
   publicKey?: string;
 }
 
-export const useWalletConnection = () => {
+export const useUserWalletConnection = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [userData, setUserData] = useState<UserWalletData | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const nav = useNavigate()
+  const nav = useNavigate();
 
   useEffect(() => {
     // Check if user is already connected on component mount
@@ -31,7 +36,7 @@ export const useWalletConnection = () => {
         const userData = getLocalStorage();
         // Transform the data to match our interface
         if (userData && userData.addresses) {
-          const transformedData: WalletData = {
+          const transformedData: UserWalletData = {
             addresses: {
               stx: Array.isArray(userData.addresses.stx)
                 ? userData.addresses.stx
@@ -40,12 +45,11 @@ export const useWalletConnection = () => {
                 ? userData.addresses.btc
                 : [],
             },
-          }
-          setWalletData(transformedData)
+          };
+          setUserData(transformedData);
           setIsWalletConnected(connected);
         }
-      } catch (error) {
-      }
+      } catch (error) {}
     }
   }, [isConnected()]);
 
@@ -57,33 +61,37 @@ export const useWalletConnection = () => {
 
       // Transform the response to match our interface
       if (response && response.addresses) {
-        const stx = response.addresses.find((addr) => addr.symbol.toLowerCase() === "stx");
-        const btc = response.addresses.find((addr) => addr.symbol.toLowerCase() === "btc");
-        const transformedData: WalletData = {
+        const stx = response.addresses.find(
+          (addr) => addr.symbol.toLowerCase() === "stx"
+        );
+        const btc = response.addresses.find(
+          (addr) => addr.symbol.toLowerCase() === "btc"
+        );
+        const transformedData: UserWalletData = {
           addresses: {
             stx: [stx],
             btc: [btc],
           },
         };
-        setWalletData(transformedData);
+        setUserData(transformedData);
       }
     } catch (error) {
     } finally {
       setIsConnecting(false);
     }
-  }
+  };
   const disconnectWallet = () => {
-    disconnect()
-    setIsWalletConnected(isConnected())
-    setWalletData(null)
-    nav('/')
-  }
+    disconnect();
+    setIsWalletConnected(isConnected());
+    setUserData(null);
+    nav("/");
+  };
 
   return {
     isWalletConnected,
-    walletData,
+    userData,
     isConnecting,
     connectWallet,
-    disconnectWallet
-  }
+    disconnectWallet,
+  };
 };

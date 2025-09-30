@@ -1,26 +1,32 @@
+import WalletContractDetails from "@/components/WalletContractDetails";
 import WalletLayout from "@/components/WalletLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import SecondaryButton from "@/components/ui/secondary-button"; // Add this import if not present
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Settings, Plus, Trash2, Copy, Check } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { handleCCS } from "@/services/smartWalletContractService";
-import { useBlockchainService } from "@/hooks/useBlockchainService";
-import GreenButton from "@/components/ui/green-button";
-import PrimaryButton from "@/components/ui/primary-button";
-import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
-import { formatNumber } from "@/utils/numbers";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import GreenButton from "@/components/ui/green-button";
+import { Input } from "@/components/ui/input";
+import PrimaryButton from "@/components/ui/primary-button";
+import RedButton from "@/components/ui/red-button";
+import SecondaryButton from "@/components/ui/secondary-button"; // Add this import if not present
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
+import useContractDetails from "@/hooks/useContractDetails";
 import { useTxServices } from "@/hooks/useTxServices";
+import { handleCCS } from "@/services/smartWalletContractService";
+import { formatAbi } from "@/utils/formatAbi";
+import { formatNumber } from "@/utils/numbers";
+import { ChainId } from "@stacks/network";
+import { Check, Copy, FileText, Plus, Settings, Trash2, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 type WalletInfo = {
   smart_contract?: {
@@ -42,10 +48,6 @@ const WalletDetails = () => {
   const [owner, setOwner] = useState("");
   const [adminInput, setAdminInput] = useState("");
   const [newOwnerInput, setNewOwnerInput] = useState("");
-  const [activeExtensions, setActiveExtensions] = useState([
-    { id: "multisig", name: "Multi-Signature", status: "active" },
-    { id: "timelock", name: "Time Lock", status: "active" },
-  ]);
   const [copiedField, setCopiedField] = useState<"contractId" | "owner" | null>(
     null
   );
@@ -56,32 +58,20 @@ const WalletDetails = () => {
     "addAdmin" | "transferOwnership" | null
   >(null);
 
-  const availableExtensions = [
-    {
-      id: "treasury",
-      name: "Treasury Management",
-      description: "Advanced treasury features",
-    },
-    {
-      id: "governance",
-      name: "Governance",
-      description: "Voting and proposals",
-    },
-    {
-      id: "recovery",
-      name: "Social Recovery",
-      description: "Recover through trusted contacts",
-    },
-    {
-      id: "limit",
-      name: "Spending Limits",
-      description: "Set transaction limits",
-    },
-  ];
-
+  // Function to close modals and reset signing state
+  const closeModals = () => {
+    setShowAdminModal(false);
+    setShowTransferModal(false);
+    setIsSigning(false);
+    setTransactionType(null);
+    setAdminInput("");
+    setNewOwnerInput("");
+  };
   // Get contract owner principal (address before the first dot)
   const contractOwner = walletId ? walletId.split(".")[0] : "";
   const { stxBalance } = useAccountBalanceService(walletId);
+
+  const { contractDetails, contractAbi, contractDetailsErr } = useContractDetails(walletId)
 
   useEffect(() => {
     const fetchWalletInfo = async () => {
@@ -100,25 +90,6 @@ const WalletDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletId, searchParams, stxBalance]);
 
-  const handleAddExtension = (extensionId: string) => {
-    const extension = availableExtensions.find((ext) => ext.id === extensionId);
-    if (extension) {
-      setActiveExtensions([
-        ...activeExtensions,
-        {
-          id: extension.id,
-          name: extension.name,
-          status: "active",
-        },
-      ]);
-    }
-  };
-
-  const handleRemoveExtension = (extensionId: string) => {
-    setActiveExtensions(
-      activeExtensions.filter((ext) => ext.id !== extensionId)
-    );
-  };
 
   const handleTransaction = async () => {
     setIsSigning(true);
@@ -140,11 +111,15 @@ const WalletDetails = () => {
             variant: "default",
           });
         }
-        setIsSigning(false);
-        setShowAdminModal(false);
-        setAdminInput("");
+        closeModals();
       } catch (error) {
-        setIsSigning(false);
+        console.error("Error adding admin:", error);
+        toast({
+          title: "Error",
+          description: "Failed to add admin. Please try again.",
+          variant: "destructive",
+        });
+        closeModals();
       }
     } else if (transactionType === "transferOwnership") {
       if (!walletId || !newOwnerInput) {
@@ -163,11 +138,15 @@ const WalletDetails = () => {
             variant: "default",
           });
         }
-        setIsSigning(false);
-        setShowTransferModal(false);
-        setNewOwnerInput("");
+        closeModals();
       } catch (error) {
-        setIsSigning(false);
+        console.error("Error transferring ownership:", error);
+        toast({
+          title: "Error",
+          description: "Failed to transfer ownership. Please try again.",
+          variant: "destructive",
+        });
+        closeModals();
       }
     }
   };
@@ -196,7 +175,7 @@ const WalletDetails = () => {
               <Wallet className="mr-2 h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
               <span className="hidden sm:inline">
                 {/* {walletInfo?.smart_contract?.contract_id || walletId || */}
-                "Personal Smart Wallet"
+                Personal Wallet
               </span>
               <span className="sm:hidden">Smart Wallet</span>
             </CardTitle>
@@ -286,113 +265,6 @@ const WalletDetails = () => {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {/* Active Extensions */}
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center text-lg sm:text-xl">
-                <Settings className="mr-2 h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
-                <span className="hidden sm:inline">Active Extensions</span>
-                <span className="sm:hidden">Active</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {activeExtensions.length === 0 ? (
-                <div className="text-center py-8">
-                  <Settings className="h-12 w-12 text-slate-500 mx-auto mb-3" />
-                  <p className="text-slate-400">No extensions installed</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {activeExtensions.map((extension) => (
-                    <div
-                      key={extension.id}
-                      className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0"></div>
-                        <span className="text-white font-medium text-sm sm:text-base truncate">
-                          {extension.name}
-                        </span>
-                        <Badge
-                          variant="secondary"
-                          className="bg-green-600/20 text-green-300 text-xs flex-shrink-0"
-                        >
-                          {extension.status}
-                        </Badge>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveExtension(extension.id)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-600/20 flex-shrink-0 ml-2"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Available Extensions */}
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white text-lg sm:text-xl">
-                <span className="hidden sm:inline">Available Extensions</span>
-                <span className="sm:hidden">Available</span>
-              </CardTitle>
-              <p className="text-slate-400 text-xs sm:text-sm">
-                <span className="hidden sm:inline">Add new functionality to your wallet</span>
-                <span className="sm:hidden">Add new functionality</span>
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {availableExtensions
-                  .filter(
-                    (ext) =>
-                      !activeExtensions.find((active) => active.id === ext.id)
-                  )
-                  .map((extension) => (
-                    <div
-                      key={extension.id}
-                      className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg"
-                    >
-                      <div className="min-w-0 flex-1 mr-3">
-                        <div className="text-white font-medium text-sm sm:text-base truncate">
-                          {extension.name}
-                        </div>
-                        <div className="text-slate-400 text-xs sm:text-sm" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {extension.description}
-                        </div>
-                      </div>
-                      <PrimaryButton
-                        size="sm"
-                        onClick={() => handleAddExtension(extension.id)}
-                        className="flex-shrink-0"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </PrimaryButton>
-                    </div>
-                  ))}
-                {availableExtensions.filter(
-                  (ext) =>
-                    !activeExtensions.find((active) => active.id === ext.id)
-                ).length === 0 && (
-                    <div className="text-center py-8">
-                      <Plus className="h-12 w-12 text-slate-500 mx-auto mb-3" />
-                      <p className="text-slate-400">
-                        All available extensions are installed
-                      </p>
-                    </div>
-                  )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Actions */}
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader>
@@ -403,33 +275,34 @@ const WalletDetails = () => {
               <GreenButton asChild>
                 <a href={`/dashboard/${walletId}`}>Open Dashboard</a>
               </GreenButton>
-              <SecondaryButton>Export Configuration</SecondaryButton>
-              <Button
-                variant="outline"
-                className="border-red-600 text-red-400 hover:bg-red-600/20"
+              <RedButton
                 onClick={() => {
                   setTransactionType("transferOwnership");
                   setShowTransferModal(true);
                 }}
+                disabled={isSigning}
               >
                 Transfer Ownership
-              </Button>
-              <Button
-                variant="outline"
-                className="border-blue-600 text-blue-400 hover:bg-blue-600/20"
+              </RedButton>
+              <RedButton
                 onClick={() => {
                   setTransactionType("addAdmin");
                   setShowAdminModal(true);
                 }}
+                disabled={isSigning}
               >
                 Add Admin
-              </Button>
+              </RedButton>
             </div>
           </CardContent>
         </Card>
 
         {/* Add Admin Modal */}
-        <Dialog open={showAdminModal} onOpenChange={setShowAdminModal}>
+        <Dialog open={showAdminModal} onOpenChange={(open) => {
+          if (!open && !isSigning) {
+            closeModals();
+          }
+        }}>
           <DialogContent className="bg-slate-800/90 border text-white border-slate-700 shadow-xl">
             <DialogHeader>
               <DialogTitle>Add Admin Principal</DialogTitle>
@@ -454,7 +327,7 @@ const WalletDetails = () => {
               </SecondaryButton>
               <Button
                 variant="ghost"
-                onClick={() => setShowAdminModal(false)}
+                onClick={closeModals}
                 disabled={isSigning}
               >
                 Cancel
@@ -464,7 +337,11 @@ const WalletDetails = () => {
         </Dialog>
 
         {/* Transfer Ownership Modal */}
-        <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
+        <Dialog open={showTransferModal} onOpenChange={(open) => {
+          if (!open && !isSigning) {
+            closeModals();
+          }
+        }}>
           <DialogContent className="bg-slate-800/90 border text-white border-slate-700 shadow-xl">
             <DialogHeader>
               <DialogTitle>Transfer Ownership</DialogTitle>
@@ -489,7 +366,7 @@ const WalletDetails = () => {
               </SecondaryButton>
               <Button
                 variant="ghost"
-                onClick={() => setShowTransferModal(false)}
+                onClick={closeModals}
                 disabled={isSigning}
               >
                 Cancel
@@ -497,6 +374,8 @@ const WalletDetails = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <WalletContractDetails walletId={walletId!} />
       </div>
     </WalletLayout>
   );

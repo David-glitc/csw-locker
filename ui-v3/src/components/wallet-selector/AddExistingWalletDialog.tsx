@@ -10,6 +10,7 @@ import PrimaryButton from "../ui/primary-button";
 import { useNavigate } from "react-router-dom";
 import { constructContractValues, handleCCS } from "@/services/smartWalletContractService";
 import { ContractTypes } from "@/data/walletTypes";
+import SecondaryButton from "../ui/secondary-button";
 
 interface AddExistingWalletDialogProps {
   onWalletAdded: (wallet: any) => void;
@@ -97,14 +98,14 @@ const AddExistingWalletDialog = ({ onWalletAdded, isDemoMode }: AddExistingWalle
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
+        <SecondaryButton
           variant="outline"
           className="bg-slate-800/50 border-slate-700 text-white hover:bg-slate-700/50"
           disabled={isDemoMode}
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Existing Wallet
-        </Button>
+        </SecondaryButton>
       </DialogTrigger>
       <DialogContent className="w-full items-center justify-center sm:max-w-[425px] bg-slate-800 border-slate-700 text-white">
         <DialogHeader>

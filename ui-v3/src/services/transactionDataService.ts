@@ -1,8 +1,8 @@
 import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
 import { getClientConfig } from "../utils/chain-config";
-import { TxAssetInfo, TxInfo, Transaction, Recipient } from './interfaces';
-import { RecipientStorageService } from './recipientStorageService';
+import { TxAssetInfo, TxInfo, Transaction, Recipient } from "./interfaces";
+import { RecipientStorageService } from "./recipientStorageService";
 
 interface StacksTransactionEvent {
   events: Record<string, unknown>;
@@ -46,8 +46,6 @@ interface PostConditionAsset {
   symbol: string;
 }
 
-
-
 interface TransactionCache {
   [address: string]: {
     transactions: Transaction[];
@@ -85,12 +83,12 @@ export class TransactionDataService {
   private async enforceRateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
-    
+
     if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
       const delay = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    
+
     this.lastRequestTime = Date.now();
   }
 
@@ -99,14 +97,14 @@ export class TransactionDataService {
    * @param walletAddress - The wallet address to fetch transactions for
    * @param offset - The offset for pagination (default: 0)
    * @returns Promise<StacksTransactionEvent[]> - Array of transaction events
-   * 
+   *
    * @example
    * ```typescript
    * const transactionService = new TransactionDataService();
-   * 
+   *
    * // Fetch first 20 transactions
    * const transactions = await transactionService.fetchTransactionsFromAPI('SP123...', 0);
-   * 
+   *
    * // Fetch next 20 transactions (pagination)
    * const nextPage = await transactionService.fetchTransactionsFromAPI('SP123...', 20);
    * ```
@@ -125,26 +123,29 @@ export class TransactionDataService {
         {
           timeout: 10000, // 10 second timeout
           headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          }
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
         }
       );
 
       if (response?.data?.results) {
         return response.data.results;
       }
-      
+
       return [];
     } catch (error) {
-      console.error(`Error fetching transactions for address ${walletAddress}:`, error);
-      
+      console.error(
+        `Error fetching transactions for address ${walletAddress}:`,
+        error
+      );
+
       // If it's a rate limit error, wait a bit longer before throwing
       if (axios.isAxiosError(error) && error.response?.status === 429) {
-        console.warn('Rate limit exceeded, waiting 2 seconds before retry...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.warn("Rate limit exceeded, waiting 2 seconds before retry...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
-      
+
       throw error;
     }
   }
@@ -165,15 +166,15 @@ export class TransactionDataService {
             symbol: c?.asset?.asset_name?.replace("-token", "") ?? "STX",
           }))
         : txData?.tx_type === "token_transfer" && txData.token_transfer
-          ? [
-              {
-                name: "Stacks",
-                amount: txData.token_transfer.amount,
-                asset: "STX",
-                symbol: "STX",
-              },
-            ]
-          : [];
+        ? [
+            {
+              name: "Stacks",
+              amount: txData.token_transfer.amount,
+              asset: "STX",
+              symbol: "STX",
+            },
+          ]
+        : [];
 
     const pcSender = txData?.post_conditions?.[0]?.principal?.contract_name
       ? `${txData.post_conditions[0].principal.address}.${txData.post_conditions[0].principal.contract_name}`
@@ -204,8 +205,8 @@ export class TransactionDataService {
         stxsent > 0
           ? "sent"
           : stxreceived > 0
-            ? "receive"
-            : (txData?.contract_call?.function_name ?? txData.tx_type),
+          ? "receive"
+          : txData?.contract_call?.function_name ?? txData.tx_type,
       from: txSender,
       to: pcSender ?? "",
       amount: pcAssetsAndAmounts[0]?.amount ?? "0",
@@ -226,7 +227,10 @@ export class TransactionDataService {
     }
 
     try {
-      const results = await this.fetchTransactionsFromAPI(walletAddress, offset);
+      const results = await this.fetchTransactionsFromAPI(
+        walletAddress,
+        offset
+      );
       const transactions = results.map((tx) => this.processTransactionData(tx));
 
       if (offset === 0) {
@@ -275,30 +279,33 @@ export class TransactionDataService {
           }
         });
 
-      const apiRecipients = Array.from(recipientMap.entries()).map(([address, data]) => ({
-        address,
-        lastSent: data.lastSent,
-        frequency: data.frequency,
-      }));
+      const apiRecipients = Array.from(recipientMap.entries()).map(
+        ([address, data]) => ({
+          address,
+          lastSent: data.lastSent,
+          frequency: data.frequency,
+        })
+      );
 
       // Get recipients from localStorage
-      const storageRecipients = RecipientStorageService.getRecentRecipientsFromStorage();
-      
+      const storageRecipients =
+        RecipientStorageService.getRecentRecipientsFromStorage();
+
       // Combine and deduplicate recipients (localStorage takes precedence for frequency)
       const combinedRecipients = new Map();
-      
+
       // Add API recipients first
-      apiRecipients.forEach(recipient => {
+      apiRecipients.forEach((recipient) => {
         combinedRecipients.set(recipient.address, recipient);
       });
-      
+
       // Add/update with localStorage recipients (they have more accurate frequency data)
-      storageRecipients.forEach(recipient => {
+      storageRecipients.forEach((recipient) => {
         combinedRecipients.set(recipient.address, recipient);
       });
-      
+
       const allRecipients = Array.from(combinedRecipients.values());
-      
+
       // Filter out removed recipients using localStorage
       return RecipientStorageService.filterRemovedRecipients(allRecipients);
     } catch (error) {
@@ -318,7 +325,7 @@ export class TransactionDataService {
       );
       return;
     }
-    
+
     try {
       const results = await this.fetchTransactionsFromAPI(address, offset);
       if (results) {
@@ -355,15 +362,15 @@ export class TransactionDataService {
                   };
                 })
               : tx?.tx_type === "token_transfer"
-                ? [
-                    {
-                      name: "Stacks",
-                      amount: tx?.token_transfer?.amount ?? "0",
-                      asset: "STX",
-                      symbol: "STX",
-                    },
-                  ]
-                : [];
+              ? [
+                  {
+                    name: "Stacks",
+                    amount: tx?.token_transfer?.amount ?? "0",
+                    asset: "STX",
+                    symbol: "STX",
+                  },
+                ]
+              : [];
           const pcSender = tx?.post_conditions?.[0]?.principal?.contract_name
             ? `${tx?.post_conditions?.[0]?.principal?.address}.${tx?.post_conditions?.[0]?.principal?.contract_name}`
             : tx?.post_conditions?.[0]?.principal?.address;
@@ -406,8 +413,8 @@ export class TransactionDataService {
                     ? tx?.contract_call?.function_name
                     : tx?.tx_type
                   : pcSender === address
-                    ? "sent"
-                    : "receive",
+                  ? "sent"
+                  : "receive",
               sender: tx?.post_conditions?.length > 0 ? pcSender : txSender,
               stamp: formatDistanceToNow(tx?.block_time_iso),
               time: tx?.block_time_iso,
@@ -449,17 +456,46 @@ export class TransactionDataService {
   async getTransactionCount(walletAddress: string): Promise<number> {
     try {
       const { api } = getClientConfig(walletAddress);
-      const response = await axios.get<{ results: StacksTransactionEvent[] }>(
-        `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=1`
-      );
-      
-      // Get nonce from the first transaction result
-      if (response?.data?.results && response.data.results.length > 0) {
-        const firstTx = response.data.results[0];
-        return firstTx.tx.nonce ?? 0;
+
+      // First, get the total count by making a request to count all transactions
+      // We'll make multiple requests with increasing offsets until we find no more transactions
+      let totalCount = 0;
+      let offset = 0;
+      const limit = 50; // Use a larger limit for efficiency
+      let hasMoreTransactions = true;
+
+      while (hasMoreTransactions) {
+        const response = await axios.get<{ results: StacksTransactionEvent[] }>(
+          `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=${limit}&offset=${offset}`,
+          {
+            timeout: 10000,
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response?.data?.results && response.data.results.length > 0) {
+          totalCount += response.data.results.length;
+
+          // If we got fewer results than the limit, we've reached the end
+          if (response.data.results.length < limit) {
+            hasMoreTransactions = false;
+          } else {
+            offset += limit;
+          }
+        } else {
+          hasMoreTransactions = false;
+        }
+
+        // Add a small delay to avoid rate limiting
+        if (hasMoreTransactions) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
-      
-      return 0;
+
+      return totalCount;
     } catch (error) {
       console.error("Error fetching transaction count:", error);
       return 0;

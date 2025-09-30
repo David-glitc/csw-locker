@@ -125,7 +125,7 @@ const AssetOverview = ({ smartWalletAddress, walletAddress }: { smartWalletAddre
 							</div>
 						</div>
 						<div className="text-right">
-							<SecondaryButton asChild variant={undefined}>
+							<SecondaryButton asChild className="w-32">
 								<Link to={`/send/${smartWalletAddress}`}>
 									<ArrowUpRight className="mr-2 h-4 w-4" />
 									Send Assets
@@ -151,9 +151,10 @@ const AssetOverview = ({ smartWalletAddress, walletAddress }: { smartWalletAddre
 							</div>
 						</div>
 						<div className="text-right">
-							<Button variant="secondary" className="flex items-center justify-center text-slate-200 bg-slate-800/50">
-								<View className="mr-2 h-4 w-4" /> View All
-							</Button>
+							<SecondaryButton className="w-32">
+								<View className="mr-2 h-4 w-4" />
+								View All
+							</SecondaryButton>
 						</div>
 					</div>
 				</div>
