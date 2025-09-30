@@ -57,6 +57,16 @@ const WalletDetails = () => {
   const [transactionType, setTransactionType] = useState<
     "addAdmin" | "transferOwnership" | null
   >(null);
+
+  // Function to close modals and reset signing state
+  const closeModals = () => {
+    setShowAdminModal(false);
+    setShowTransferModal(false);
+    setIsSigning(false);
+    setTransactionType(null);
+    setAdminInput("");
+    setNewOwnerInput("");
+  };
   // Get contract owner principal (address before the first dot)
   const contractOwner = walletId ? walletId.split(".")[0] : "";
   const { stxBalance } = useAccountBalanceService(walletId);
@@ -101,11 +111,15 @@ const WalletDetails = () => {
             variant: "default",
           });
         }
-        setIsSigning(false);
-        setShowAdminModal(false);
-        setAdminInput("");
+        closeModals();
       } catch (error) {
-        setIsSigning(false);
+        console.error("Error adding admin:", error);
+        toast({
+          title: "Error",
+          description: "Failed to add admin. Please try again.",
+          variant: "destructive",
+        });
+        closeModals();
       }
     } else if (transactionType === "transferOwnership") {
       if (!walletId || !newOwnerInput) {
@@ -124,11 +138,15 @@ const WalletDetails = () => {
             variant: "default",
           });
         }
-        setIsSigning(false);
-        setShowTransferModal(false);
-        setNewOwnerInput("");
+        closeModals();
       } catch (error) {
-        setIsSigning(false);
+        console.error("Error transferring ownership:", error);
+        toast({
+          title: "Error",
+          description: "Failed to transfer ownership. Please try again.",
+          variant: "destructive",
+        });
+        closeModals();
       }
     }
   };
@@ -257,10 +275,13 @@ const WalletDetails = () => {
               <GreenButton asChild>
                 <a href={`/dashboard/${walletId}`}>Open Dashboard</a>
               </GreenButton>
-              <RedButton onClick={() => {
-                setTransactionType("transferOwnership");
-                setShowTransferModal(true);
-              }}>
+              <RedButton
+                onClick={() => {
+                  setTransactionType("transferOwnership");
+                  setShowTransferModal(true);
+                }}
+                disabled={isSigning}
+              >
                 Transfer Ownership
               </RedButton>
               <RedButton
@@ -268,6 +289,7 @@ const WalletDetails = () => {
                   setTransactionType("addAdmin");
                   setShowAdminModal(true);
                 }}
+                disabled={isSigning}
               >
                 Add Admin
               </RedButton>
@@ -276,7 +298,11 @@ const WalletDetails = () => {
         </Card>
 
         {/* Add Admin Modal */}
-        <Dialog open={showAdminModal} onOpenChange={setShowAdminModal}>
+        <Dialog open={showAdminModal} onOpenChange={(open) => {
+          if (!open && !isSigning) {
+            closeModals();
+          }
+        }}>
           <DialogContent className="bg-slate-800/90 border text-white border-slate-700 shadow-xl">
             <DialogHeader>
               <DialogTitle>Add Admin Principal</DialogTitle>
@@ -301,7 +327,7 @@ const WalletDetails = () => {
               </SecondaryButton>
               <Button
                 variant="ghost"
-                onClick={() => setShowAdminModal(false)}
+                onClick={closeModals}
                 disabled={isSigning}
               >
                 Cancel
@@ -311,7 +337,11 @@ const WalletDetails = () => {
         </Dialog>
 
         {/* Transfer Ownership Modal */}
-        <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
+        <Dialog open={showTransferModal} onOpenChange={(open) => {
+          if (!open && !isSigning) {
+            closeModals();
+          }
+        }}>
           <DialogContent className="bg-slate-800/90 border text-white border-slate-700 shadow-xl">
             <DialogHeader>
               <DialogTitle>Transfer Ownership</DialogTitle>
@@ -336,7 +366,7 @@ const WalletDetails = () => {
               </SecondaryButton>
               <Button
                 variant="ghost"
-                onClick={() => setShowTransferModal(false)}
+                onClick={closeModals}
                 disabled={isSigning}
               >
                 Cancel
