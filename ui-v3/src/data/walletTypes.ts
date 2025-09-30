@@ -23,7 +23,7 @@ export const ContractTypes: ContractType[] = [
     label: "Personal Wallet",
     description:
       "The Personal Wallet is a Clarity-based smart contract designed to function as an extendible, secure wallet that supports standard token operations and admin-controlled contract calls",
-    extensions: ["Multi-sig", "Delegate STX"],
+    extensions: ["Delegate STX"],
     ext: false,
     recomended: true,
     comingSoon: false,

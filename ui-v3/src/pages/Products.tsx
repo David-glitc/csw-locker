@@ -106,7 +106,7 @@ const Products = () => {
                     <Check className="h-5 w-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <div>
                       <h5 className="text-white font-medium">Multi-Signature Security</h5>
-                      <p className="text-slate-400 text-sm">Add family members as co-signers for enhanced security on large transactions.</p>
+                      <p className="text-slate-400 text-sm">Add family members as co-signers for enhanced security on large transactions using Asigna Multisig wallet.</p>
                     </div>
                   </div>
                 </div>
