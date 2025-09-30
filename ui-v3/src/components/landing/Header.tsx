@@ -7,6 +7,7 @@ import SecondaryButton from "../ui/secondary-button";
 import PrimaryButton from "../ui/primary-button";
 import { useEffect, useState } from "react";
 import MobileMenu from "./MobileMenu";
+import { DOCS_URL } from "@/lib/const";
 
 const Header = () => {
   const { isWalletConnected, connectWallet, disconnectWallet, isConnecting, walletData } = useWalletConnection();
@@ -65,7 +66,7 @@ const Header = () => {
               asChild
             >
               <a
-                href="https://polimartlabs.gitbook.io/smart-wallet/overview/why-smart-wallet"
+                href={DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -102,9 +103,9 @@ const Header = () => {
           </div>
 
           {/* Mobile Menu */}
-          <MobileMenu 
-            isOpen={mobileMenue} 
-            onOpenChange={setMobileMenue} 
+          <MobileMenu
+            isOpen={mobileMenue}
+            onOpenChange={setMobileMenue}
           />
 
         </nav>

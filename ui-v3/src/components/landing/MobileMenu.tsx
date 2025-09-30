@@ -6,12 +6,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { 
-  Wallet, 
-  X, 
-  FileText, 
-  Info, 
-  Package, 
+import {
+  Wallet,
+  X,
+  FileText,
+  Info,
+  Package,
   Star,
   ExternalLink
 } from "lucide-react";
@@ -20,6 +20,7 @@ import { useWalletConnection } from "@/hooks/useWalletConnection";
 import GreenButton from "../ui/green-button";
 import SecondaryButton from "../ui/secondary-button";
 import PrimaryButton from "../ui/primary-button";
+import { DOCS_URL } from "@/lib/const";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -60,25 +61,25 @@ const MobileMenu = ({
   };
 
   const navItems = [
-    { 
-      label: "Features", 
-      icon: Star, 
+    {
+      label: "Features",
+      icon: Star,
       action: scrollToFeatures,
       isButton: true
     },
-    { 
-      path: "/products", 
-      label: "Products", 
-      icon: Package 
+    {
+      path: "/products",
+      label: "Products",
+      icon: Package
     },
-    { 
-      path: "/about", 
-      label: "About", 
-      icon: Info 
+    {
+      path: "/about",
+      label: "About",
+      icon: Info
     },
-    { 
-      href: "https://polimartlabs.gitbook.io/smart-wallet/overview/why-smart-wallet",
-      label: "Docs", 
+    {
+      href: DOCS_URL,
+      label: "Docs",
       icon: FileText,
       external: true
     },
@@ -100,7 +101,7 @@ const MobileMenu = ({
             </DrawerClose>
           </div>
         </DrawerHeader>
-        
+
         <div className="p-4 space-y-4">
           {/* Wallet Connection Status */}
           {isWalletConnected && walletData?.addresses?.stx?.[0]?.address && (
@@ -161,8 +162,8 @@ const MobileMenu = ({
                     asChild
                     variant={isActive ? "secondary" : "ghost"}
                     className={`w-full justify-start font-medium ${isActive
-                        ? "bg-purple-600/30 text-purple-200 border border-purple-600/50"
-                        : "text-slate-200 hover:bg-slate-700/60 hover:text-white"
+                      ? "bg-purple-600/30 text-purple-200 border border-purple-600/50"
+                      : "text-slate-200 hover:bg-slate-700/60 hover:text-white"
                       }`}
                   >
                     <Link to={item.path!}>
