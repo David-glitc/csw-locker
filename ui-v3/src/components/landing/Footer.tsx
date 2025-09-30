@@ -37,8 +37,8 @@ const Footer = () => {
             <h3 className="text-white font-semibold">Resources</h3>
             <ul className="space-y-2">
               <li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white text-sm transition-colors">Guides</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-white text-sm transition-colors">API Docs</a></li>
-              <li><a href="#" className="text-slate-400 hover:text-white text-sm transition-colors">Support</a></li>
+              <li><a href="#" className="text-slate-400 hover:text-white text-sm transition-colors">Developer Docs</a></li>
+              <li><a href="#" className="text-slate-400 hover:text-white text-sm transition-colors">Expert Support</a></li>
             </ul>
           </div>
 

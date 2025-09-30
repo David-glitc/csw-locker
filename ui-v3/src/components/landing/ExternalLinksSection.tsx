@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Book, Code, HelpCircle } from "lucide-react";
 import SecondaryButton from "../ui/secondary-button";
+import { DOCS_URL } from "@/lib/const";
 
 const ExternalLinksSection = () => {
   return (
@@ -29,8 +30,8 @@ const ExternalLinksSection = () => {
                   Explore our detailed user materials
                 </p>
               </div>
-              <SecondaryButton className="w-full">
-                Learn more
+              <SecondaryButton className="w-full" asChild>
+                <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">Learn more</a>
               </SecondaryButton>
             </CardContent>
           </Card>
