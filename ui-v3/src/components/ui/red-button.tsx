@@ -8,14 +8,16 @@ interface RedButtonProps extends ButtonProps {
 }
 
 const RedButton = React.forwardRef<HTMLButtonElement, RedButtonProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ disabled, className, children, ...props }, ref) => {
     return (
       <Button
         ref={ref}
         className={cn(
-          "bg-red-600 hover:bg-red-700 text-white",
+          disabled ? "border-red-600 bg-red-700/20 opacity-60 cursor-not-allowed hover:bg-red-700/20" :
+            "bg-red-600 hover:bg-red-700 text-white",
           className
         )}
+        disabled={disabled}
         {...props}
       >
         {children}
