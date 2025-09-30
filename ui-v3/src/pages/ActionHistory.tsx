@@ -139,7 +139,7 @@ const ActionHistory = () => {
                       placeholder="Search transactions..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full sm:w-80 lg:w-96 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 pr-12"
+                      className="w-full sm:w-80 lg:w-96 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 pr-12 h-9"
                       style={{ paddingRight: searchTerm ? '2.5rem' : undefined }}
                     />
                     {searchTerm && (
@@ -157,11 +157,11 @@ const ActionHistory = () => {
                   <div className="relative">
                     <button
                       type="button"
-                      className="flex items-center px-2 py-1 bg-slate-700/50 border border-slate-600 rounded hover:bg-slate-700 focus:outline-none"
+                      className="flex items-center justify-center h-9 w-9 bg-slate-700/50 border border-slate-600 rounded hover:bg-slate-700 focus:outline-none"
                       tabIndex={0}
                       onClick={() => setShowFilter((prev) => !prev)}
                     >
-                      <Filter className="w-5 h-5 text-slate-400" />
+                      <Filter className="w-4 h-4 text-slate-400" />
                     </button>
                     {showFilter && (
                       <div
@@ -184,7 +184,7 @@ const ActionHistory = () => {
 
                   <PrimaryButton
                     onClick={handleRefreshWithDisplayReset}
-                    className="flex items-center justify-center min-w-[80px] sm:min-w-[90px] px-2 sm:px-3"
+                    className="flex items-center justify-center h-9 min-w-[80px] sm:min-w-[90px] px-2 sm:px-3"
                     disabled={refreshing || isLoading}
                   >
                     {refreshing ? <Loader2 className="mr-1 sm:mr-2 h-4 w-4 animate-spin" /> : null}
