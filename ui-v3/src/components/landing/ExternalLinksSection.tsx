@@ -47,8 +47,8 @@ const ExternalLinksSection = () => {
                   Power your app with Smart Wallet APIs
                 </p>
               </div>
-              <SecondaryButton className="w-full">
-                Learn more
+              <SecondaryButton className="w-full" disabled>
+                Under development
               </SecondaryButton>
             </CardContent>
           </Card>
