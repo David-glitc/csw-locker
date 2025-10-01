@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
 import SecondaryButton from "@/components/ui/secondary-button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import { useTransactionData } from "@/hooks/useTransactionData";
@@ -120,17 +121,23 @@ const ActionHistory = () => {
                     {showFilter && (
                       <div
                         className="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg z-20 p-4"
-                        onMouseLeave={() => setShowFilter(false)}
-                        onMouseEnter={() => setShowFilter(true)}
                       >
                         <div className="mb-2">
                           <label className="block text-xs text-slate-400 mb-1">Action</label>
-                          <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full bg-slate-700 text-white rounded p-1 focus:ring-2 focus:ring-purple-400">
-                            <option value="all">All</option>
-                            {txActions.map(action => (
-                              <option key={action} value={action}>{getTxLabel({ action, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}</option>
-                            ))}
-                          </select>
+                          <Select value={filterAction} onValueChange={e => {
+                            setShowFilter(false);
+                            setFilterAction(e)
+                          }} defaultOpen>
+                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                              <SelectValue placeholder="Select action" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-800 border-slate-600 text-white shadow-lg">
+                              <SelectItem value="all" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">All</SelectItem>
+                              {txActions.map(action => (
+                                <SelectItem key={action} value={action} className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">{getTxLabel({ action, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     )}
