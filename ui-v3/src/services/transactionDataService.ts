@@ -3,6 +3,8 @@ import { formatDistanceToNow } from "date-fns";
 import { getClientConfig } from "../utils/chain-config";
 import { Recipient, TxInfo } from "./interfaces";
 import { RecipientStorageService } from "./recipientStorageService";
+import { deserializeCV } from "@stacks/transactions";
+import { hexToBytes } from "@stacks/common";
 
 interface StacksTransactionEvent {
   events: Record<string, unknown>;
@@ -11,6 +13,7 @@ interface StacksTransactionEvent {
   tx: {
     token_transfer?: {
       amount: string;
+      recipient_address: string;
     };
     tx_id: string;
     tx_status: string;
@@ -22,6 +25,7 @@ interface StacksTransactionEvent {
       function_name: string;
       function_args: Array<{
         repr: string;
+        hex: string;
       }>;
     };
     post_conditions: Array<{
@@ -156,31 +160,72 @@ export class TransactionDataService {
     stxreceived: number,
     pcSender: string | undefined,
     address: string
-  ): string {
-    // Special handling for contract_deploy
-    if (txData.tx_type === "contract_deploy") {
-      return txData.tx_type;
+  ): TxInfo["action"] {
+    // deploy smart contract
+    if (txData.tx_type === "smart_contract") {
+      return "contract_deploy";
     }
 
+    // stacking / delegate-stx
+    if (
+      txData.contract_call &&
+      // assume txData.contract_call.contract_id === address for now &&
+      txData.contract_call.function_name === "extension-call"
+    ) {
+      if (txData.contract_call.function_args.length > 1) {
+        const extension = txData.contract_call.function_args[0].repr?.replace(
+          /'/g,
+          ""
+        );
+        const [, extName] = extension.split(".");
+        if (extName === "ext-delegate-stx-pox-4") {
+          return "delegate_stx";
+        }
+      }
+    }
+
+    // transfer wallet
+    if (
+      txData.contract_call &&
+      // assume txData.contract_call.contract_id === address for now &&
+      txData.contract_call.function_name === "transfer-wallet"
+    ) {
+      return "transfer_wallet";
+    }
+
+    // deposit withdraw from smart contract
+    if (txData.tx_type === "token_transfer" && txData.token_transfer) {
+      return txData.token_transfer.recipient_address === address
+        ? "deposit"
+        : "withdraw";
+    }
     const isStx = stxsent > 0 || stxreceived > 0;
 
     if (isStx) {
       return stxsent > 0 ? "sent" : "receive";
     } else {
       if (txData.post_conditions?.length === 0) {
-        return txData.contract_call?.function_name ?? txData.tx_type;
+        return "contract_call";
       } else {
         return pcSender === address ? "sent" : "receive";
       }
     }
   }
 
-  public determineTransactionSender(
+  public determineActor(
     txData: StacksTransactionEvent["tx"],
     stxsent: number,
     stxreceived: number,
     pcSender: string | undefined
   ): string {
+    if (
+      txData.contract_call &&
+      // assume txData.contract_call.contract_id === address for now &&
+      txData.contract_call.function_name === "transfer-wallet"
+    ) {
+      return txData.contract_call.function_args[0].repr?.replace("'", "") || "";
+    }
+
     const isStx = stxsent > 0 || stxreceived > 0;
 
     const txSender =
@@ -211,6 +256,7 @@ export class TransactionDataService {
     const stxreceived = Number(stx_received);
     const normalizedStatus = getNormalizedStatus(txData.tx_status);
 
+    console.log(txData.tx_id, txData?.post_conditions);
     const pcAssetsAndAmounts: PostConditionAsset[] =
       txData?.post_conditions?.length > 0
         ? txData.post_conditions.map((c) => ({
@@ -243,12 +289,7 @@ export class TransactionDataService {
       pcSender,
       address
     );
-    const sender = this.determineTransactionSender(
-      txData,
-      stxsent,
-      stxreceived,
-      pcSender
-    );
+    const actor = this.determineActor(txData, stxsent, stxreceived, pcSender);
 
     // Special case: contract_deploy that's not confirmed gets empty assets
     const assets =
@@ -258,7 +299,7 @@ export class TransactionDataService {
 
     return {
       action,
-      sender,
+      actor,
       stamp: formatDistanceToNow(txData.block_time_iso),
       time: txData.block_time_iso,
       assets,

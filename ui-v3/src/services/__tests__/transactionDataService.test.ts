@@ -11,7 +11,7 @@ describe("TransactionDataService Helper Functions", () => {
   describe("determineTransactionAction", () => {
     it("should return contract_deploy for contract deploy transactions", () => {
       const txData = {
-        tx_type: "contract_deploy",
+        tx_type: "smart_contract",
         tx_id: "test-id",
         tx_status: "success",
         block_time_iso: "2023-01-01T00:00:00Z",
@@ -90,7 +90,7 @@ describe("TransactionDataService Helper Functions", () => {
         undefined,
         "SP456"
       );
-      expect(result).toBe("transfer");
+      expect(result).toBe("contract_call");
     });
 
     it("should return tx_type for contract calls with no post conditions and no function name", () => {
@@ -175,7 +175,7 @@ describe("TransactionDataService Helper Functions", () => {
         post_conditions: [],
       };
 
-      const result = service.determineTransactionSender(
+      const result = service.determineActor(
         txData,
         0,
         1000000,
@@ -195,7 +195,7 @@ describe("TransactionDataService Helper Functions", () => {
         post_conditions: [],
       };
 
-      const result = service.determineTransactionSender(
+      const result = service.determineActor(
         txData,
         1000000,
         0,
@@ -217,13 +217,7 @@ describe("TransactionDataService Helper Functions", () => {
 
       // This tests the case where isStx = false (0 sent, 0 received) but we have pcSender
       // In this case, since post_conditions.length = 0, it should return txSender
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        "SP789",
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, "SP789", "SP123");
       expect(result).toBe("SP123");
     });
 
@@ -243,13 +237,7 @@ describe("TransactionDataService Helper Functions", () => {
       };
 
       // This tests the case where isStx = false but we have post conditions with pcSender
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        "SP789",
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, "SP789", "SP123");
       expect(result).toBe("SP789");
     });
 
@@ -263,13 +251,7 @@ describe("TransactionDataService Helper Functions", () => {
         post_conditions: [],
       };
 
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        undefined,
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, undefined, "SP123");
       expect(result).toBe("SP123");
     });
 
@@ -288,13 +270,7 @@ describe("TransactionDataService Helper Functions", () => {
         ],
       };
 
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        "SP789",
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, "SP789", "SP123");
       expect(result).toBe("SP789");
     });
 
@@ -313,13 +289,7 @@ describe("TransactionDataService Helper Functions", () => {
         ],
       };
 
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        undefined,
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, undefined, "SP123");
       expect(result).toBe("SP123");
     });
 
@@ -333,13 +303,7 @@ describe("TransactionDataService Helper Functions", () => {
         post_conditions: [],
       };
 
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        "SP789",
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, "SP789", "SP123");
       expect(result).toBe("SP123");
     });
   });
@@ -347,7 +311,7 @@ describe("TransactionDataService Helper Functions", () => {
   describe("edge cases", () => {
     it("should handle contract_deploy with confirmed status in determineTransactionAction", () => {
       const txData = {
-        tx_type: "contract_deploy",
+        tx_type: "smart_contract",
         tx_id: "test-id",
         tx_status: "confirmed",
         block_time_iso: "2023-01-01T00:00:00Z",
@@ -400,13 +364,7 @@ describe("TransactionDataService Helper Functions", () => {
         },
       };
 
-      const result = service.determineTransactionSender(
-        txData,
-        0,
-        0,
-        "SP789",
-        "SP123"
-      );
+      const result = service.determineActor(txData, 0, 0, "SP789", "SP123");
       expect(result).toBe("SP123"); // Should fallback to txSender
     });
   });

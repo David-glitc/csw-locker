@@ -1,5 +1,5 @@
 import WalletLayout from "@/components/WalletLayout";
-import TransactionItem from "@/components/transactions/TransactionItem";
+import TransactionItem, { getTxLabel } from "@/components/transactions/TransactionItem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
@@ -46,21 +46,12 @@ const ActionHistory = () => {
     transactions.filter(tx =>
       (filterAction === "all" || tx.action === filterAction) &&
       (tx.assets[0]?.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.sender?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.actor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tx.tx?.toLowerCase().includes(searchTerm.toLowerCase()))
     ), [transactions, searchTerm, filterAction]
   );
 
   const visibleTransactions = filteredTransactions.slice(0, displayCount);
-
-  // Helper to get a user-friendly label for each transaction type/action
-  const getTxLabel = (tx: TxInfo) => {
-    if (tx.action === 'sent') return 'Send';
-    if (tx.action === 'receive') return 'Receive';
-    if (tx.action === 'contract_call') return 'Contract Call';
-    if (tx.action === 'contract_deploy') return 'Contract Deploy';
-    return tx.action?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Other';
-  };
 
   return (
     <WalletLayout>
@@ -87,7 +78,7 @@ const ActionHistory = () => {
                 {(filterAction !== 'all') && (
                   <div className="flex items-center gap-2">
                     <span className="flex items-center bg-slate-700 text-white rounded px-2 py-1 text-xs">
-                      {getTxLabel({ action: filterAction, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}
+                      {getTxLabel({ action: filterAction, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}
                       <button onClick={() => setFilterAction('all')} className="ml-1 text-slate-400 hover:text-white focus:outline-none">
                         <X className="w-3 h-3" />
                       </button>
@@ -137,7 +128,7 @@ const ActionHistory = () => {
                           <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full bg-slate-700 text-white rounded p-1 focus:ring-2 focus:ring-purple-400">
                             <option value="all">All</option>
                             {txActions.map(action => (
-                              <option key={action} value={action}>{getTxLabel({ action, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}</option>
+                              <option key={action} value={action}>{getTxLabel({ action, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}</option>
                             ))}
                           </select>
                         </div>

@@ -180,8 +180,16 @@ export type TxAssetInfo = {
 };
 
 export type TxInfo = {
-  action: string;
-  sender: string;
+  action:
+    | "sent"
+    | "receive"
+    | "contract_call"
+    | "contract_deploy"
+    | "delegate_stx"
+    | "transfer_wallet"
+    | "deposit"
+    | "withdraw";
+  actor: string;
   stamp: string;
   time: string;
   assets: TxAssetInfo[];
