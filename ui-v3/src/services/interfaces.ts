@@ -42,8 +42,11 @@ export interface AddressTokenOfferingLocked {
 
 export interface AddressBalanceResponse {
   stx: StxResponseBalance;
-  fungible_tokens: Record<string, Omit<FtResponseBalance, 'asset_identifier'>>;
-  non_fungible_tokens: Record<string, Omit<NftResponseBalance, 'asset_identifier'>>;
+  fungible_tokens: Record<string, Omit<FtResponseBalance, "asset_identifier">>;
+  non_fungible_tokens: Record<
+    string,
+    Omit<NftResponseBalance, "asset_identifier">
+  >;
   token_offering_locked?: AddressTokenOfferingLocked;
 }
 
@@ -124,19 +127,6 @@ export interface TransactionParams {
   contractAddress?: string;
 }
 
-export interface Transaction {
-  id: string;
-  action: "sent" | "receive" | string;
-  from: string;
-  to: string;
-  amount: string;
-  asset: string;
-  assetType: "ft" | "nft";
-  timestamp: string;
-  status: "pending" | "confirmed" | "failed";
-  txHash: string;
-}
-
 export interface Recipient {
   address: string;
   lastSent: string;
@@ -145,15 +135,15 @@ export interface Recipient {
 
 // Smart Wallet Types
 export interface SmartWallet {
-  label: string;           // Display label for the wallet
-  id: number;              // Unique identifier for the wallet
-  name: string;            // Name of the wallet contract
-  contractId: string;      // Full contract identifier (address.name)
-  ext: boolean;            // Whether the wallet has extensions
-  stxHolding: number;      // STX balance held by the wallet
-  btcHolding: number;      // BTC balance held by the wallet
-  extensions: string[];    // Array of extension contract names
-  createdAt: string;       // ISO timestamp of when the wallet was created
+  label: string; // Display label for the wallet
+  id: number; // Unique identifier for the wallet
+  name: string; // Name of the wallet contract
+  contractId: string; // Full contract identifier (address.name)
+  ext: boolean; // Whether the wallet has extensions
+  stxHolding: number; // STX balance held by the wallet
+  btcHolding: number; // BTC balance held by the wallet
+  extensions: string[]; // Array of extension contract names
+  createdAt: string; // ISO timestamp of when the wallet was created
 }
 
 export interface WalletActivity {
@@ -168,16 +158,16 @@ export interface WalletActivity {
 
 // Extension Types
 export type ExtensionCallParams = {
-  action: string
-  extension: string
-  "amount-ustx": number
-  decimal: number
-  "delegate-to": string
-  "until-burn-ht": number
+  action: string;
+  extension: string;
+  "amount-ustx": number;
+  decimal: number;
+  "delegate-to": string;
+  "until-burn-ht": number;
   "pox-addr": {
-     version: string
-     hashbytes: string
-  }
+    version: string;
+    hashbytes: string;
+  };
 };
 
 // Transaction Data Service Types
@@ -186,6 +176,7 @@ export type TxAssetInfo = {
   name: string;
   asset: string;
   symbol: string;
+  recipient?: string;
 };
 
 export type TxInfo = {
@@ -195,7 +186,7 @@ export type TxInfo = {
   time: string;
   assets: TxAssetInfo[];
   tx: string;
-  tx_status: string;
+  tx_status: "pending" | "confirmed" | "failed";
   tx_type?: string;
 };
 

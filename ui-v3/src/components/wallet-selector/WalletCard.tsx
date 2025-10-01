@@ -34,8 +34,6 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
     navigate(`/dashboard/${wallet.contractId}`);
   };
 
-  console.log('wallet', { wallet, isEx: !wallet.ext })
-
   return (
     <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-600/50 transition-colors">
       <CardHeader>

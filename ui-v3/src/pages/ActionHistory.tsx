@@ -87,7 +87,7 @@ const ActionHistory = () => {
                 {(filterAction !== 'all') && (
                   <div className="flex items-center gap-2">
                     <span className="flex items-center bg-slate-700 text-white rounded px-2 py-1 text-xs">
-                      {getTxLabel({ action: filterAction, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: '' } as TxInfo)}
+                      {getTxLabel({ action: filterAction, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}
                       <button onClick={() => setFilterAction('all')} className="ml-1 text-slate-400 hover:text-white focus:outline-none">
                         <X className="w-3 h-3" />
                       </button>
@@ -137,7 +137,7 @@ const ActionHistory = () => {
                           <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full bg-slate-700 text-white rounded p-1 focus:ring-2 focus:ring-purple-400">
                             <option value="all">All</option>
                             {txActions.map(action => (
-                              <option key={action} value={action}>{getTxLabel({ action, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: '' } as TxInfo)}</option>
+                              <option key={action} value={action}>{getTxLabel({ action, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}</option>
                             ))}
                           </select>
                         </div>
