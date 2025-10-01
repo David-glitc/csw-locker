@@ -75,9 +75,9 @@ const DelegateStx: React.FC<Props> = ({ extensionInfo }) => {
                     <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
                         <SelectValue placeholder="Select action type" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-600">
-                        <SelectItem value="delegate">Delegate</SelectItem>
-                        <SelectItem value="revoke">Revoke</SelectItem>
+                    <SelectContent className="bg-slate-800 border-slate-600 text-white shadow-lg">
+                        <SelectItem value="delegate" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Delegate</SelectItem>
+                        <SelectItem value="revoke" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Revoke</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

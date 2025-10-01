@@ -130,7 +130,7 @@ describe("getVerifiedContracts", () => {
       src: "/smart-wallet.clar",
       label: "Personal Wallet",
       description: expect.stringContaining("Personal Wallet"),
-      extensions: ["Multi-sig", "Delegate STX"],
+      extensions: ["Delegate STX"],
       ext: false,
       recomended: true,
       comingSoon: false,

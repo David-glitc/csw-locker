@@ -1,9 +1,10 @@
 import WalletLayout from "@/components/WalletLayout";
-import TransactionItem from "@/components/transactions/TransactionItem";
+import TransactionItem, { getTxLabel } from "@/components/transactions/TransactionItem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import PrimaryButton from "@/components/ui/primary-button";
 import SecondaryButton from "@/components/ui/secondary-button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import { useTransactionData } from "@/hooks/useTransactionData";
@@ -46,21 +47,12 @@ const ActionHistory = () => {
     transactions.filter(tx =>
       (filterAction === "all" || tx.action === filterAction) &&
       (tx.assets[0]?.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.sender?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.actor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tx.tx?.toLowerCase().includes(searchTerm.toLowerCase()))
     ), [transactions, searchTerm, filterAction]
   );
 
   const visibleTransactions = filteredTransactions.slice(0, displayCount);
-
-  // Helper to get a user-friendly label for each transaction type/action
-  const getTxLabel = (tx: TxInfo) => {
-    if (tx.action === 'sent') return 'Send';
-    if (tx.action === 'receive') return 'Receive';
-    if (tx.action === 'contract_call') return 'Contract Call';
-    if (tx.action === 'contract_deploy') return 'Contract Deploy';
-    return tx.action?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Other';
-  };
 
   return (
     <WalletLayout>
@@ -87,7 +79,7 @@ const ActionHistory = () => {
                 {(filterAction !== 'all') && (
                   <div className="flex items-center gap-2">
                     <span className="flex items-center bg-slate-700 text-white rounded px-2 py-1 text-xs">
-                      {getTxLabel({ action: filterAction, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: '' } as TxInfo)}
+                      {getTxLabel({ action: filterAction, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}
                       <button onClick={() => setFilterAction('all')} className="ml-1 text-slate-400 hover:text-white focus:outline-none">
                         <X className="w-3 h-3" />
                       </button>
@@ -129,17 +121,23 @@ const ActionHistory = () => {
                     {showFilter && (
                       <div
                         className="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded shadow-lg z-20 p-4"
-                        onMouseLeave={() => setShowFilter(false)}
-                        onMouseEnter={() => setShowFilter(true)}
                       >
                         <div className="mb-2">
                           <label className="block text-xs text-slate-400 mb-1">Action</label>
-                          <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full bg-slate-700 text-white rounded p-1 focus:ring-2 focus:ring-purple-400">
-                            <option value="all">All</option>
-                            {txActions.map(action => (
-                              <option key={action} value={action}>{getTxLabel({ action, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: '' } as TxInfo)}</option>
-                            ))}
-                          </select>
+                          <Select value={filterAction} onValueChange={e => {
+                            setShowFilter(false);
+                            setFilterAction(e)
+                          }} defaultOpen>
+                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                              <SelectValue placeholder="Select action" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-800 border-slate-600 text-white shadow-lg">
+                              <SelectItem value="all" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">All</SelectItem>
+                              {txActions.map(action => (
+                                <SelectItem key={action} value={action} className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">{getTxLabel({ action, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'confirmed' } as TxInfo)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     )}
