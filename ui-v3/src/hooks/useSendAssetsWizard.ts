@@ -179,7 +179,6 @@ export const useSendAssetsWizard = () => {
     selectedWallet,
     recipients,
     isLoading: txLoading,
-    // isDemoMode,
 
     // Actions
     setCurrentStep,

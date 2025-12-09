@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { TransactionDataService } from '@/services/transactionDataService';
-import { AccountBalanceService } from '@/services/accountBalanceService';
-import { TxInfo } from '@/services/types';
 import { fetchStxUsdPrice } from '@/lib/stxPrice';
+import { AccountBalanceService } from '@/services/accountBalanceService';
 import { FtResponseBalance } from '@/services/interfaces';
+import { TransactionDataService } from '@/services/transactionDataService';
+import { TxInfo } from '@/services/types';
 import { getClientConfig } from '@/utils/chain-config';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface AssetDecimals {
   [symbol: string]: number;

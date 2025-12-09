@@ -9,8 +9,9 @@ import {
   nftInfoType,
   metaDataType,
   nftAssetType,
+  NftMetadataResponse,
   GetFungibleTokenMeta,
-  GetNoneFungibleTokenMeta
+  GetNoneFungibleTokenMeta,
 } from "../types";
 
 interface ApiConfig {
@@ -38,15 +39,18 @@ export class MockAccountBalanceService {
    * Mock function to simulate API delay
    */
   private async delay(ms: number = 1000): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
    * Generic function to get mock balance data
    */
-  private async getBalance<T>(address: string, config?: Partial<ApiConfig>): Promise<T | null> {
+  private async getBalance<T>(
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<T | null> {
     await this.delay(500); // Simulate API delay
-    
+
     // Return mock data that matches the API schema
     return this.getMockBalanceData() as T;
   }
@@ -54,17 +58,29 @@ export class MockAccountBalanceService {
   /**
    * Get mock STX balance for an address
    */
-  async getStxBalance(address: string, config?: Partial<ApiConfig>): Promise<StxResponseBalance | null> {
-    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
+  async getStxBalance(
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<StxResponseBalance | null> {
+    const balanceData = await this.getBalance<AddressBalanceResponse>(
+      address,
+      config
+    );
     return balanceData?.stx || null;
   }
 
   /**
    * Get mock Fungible Token balances for an address
    */
-  async getFtBalance(address: string, config?: Partial<ApiConfig>): Promise<FtResponseBalance[]> {
-    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
-    
+  async getFtBalance(
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<FtResponseBalance[]> {
+    const balanceData = await this.getBalance<AddressBalanceResponse>(
+      address,
+      config
+    );
+
     if (!balanceData?.fungible_tokens) {
       return [];
     }
@@ -78,9 +94,15 @@ export class MockAccountBalanceService {
   /**
    * Get mock Non-Fungible Token balances for an address
    */
-  async getNftBalance(address: string, config?: Partial<ApiConfig>): Promise<NftResponseBalance[]> {
-    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
-    
+  async getNftBalance(
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<NftResponseBalance[]> {
+    const balanceData = await this.getBalance<AddressBalanceResponse>(
+      address,
+      config
+    );
+
     if (!balanceData?.non_fungible_tokens) {
       return [];
     }
@@ -94,13 +116,19 @@ export class MockAccountBalanceService {
   /**
    * Get complete mock account balances (STX, FT, NFT)
    */
-  async getAccountBalances(address: string, config?: Partial<ApiConfig>): Promise<AccountBalanceType | null> {
+  async getAccountBalances(
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<AccountBalanceType | null> {
     if (!address) return null;
 
     await this.delay(800); // Simulate API delay
 
-    const balanceData = await this.getBalance<AddressBalanceResponse>(address, config);
-    
+    const balanceData = await this.getBalance<AddressBalanceResponse>(
+      address,
+      config
+    );
+
     if (!balanceData) {
       return null;
     }
@@ -108,12 +136,16 @@ export class MockAccountBalanceService {
     const ftBalance = await this.getFtBalance(address, config);
     const nftBalance = await this.getNftBalance(address, config);
     const stxBalance = this.constructStxBalance(balanceData.stx);
-    
+
     // Find sBTC balance if it exists
     const sbtcToken = ftBalance.find(
-      (token) => token.asset_identifier === "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token"
+      (token) =>
+        token.asset_identifier ===
+        "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token"
     );
-    const sBtcBalance = sbtcToken ? await this.constructFtBalance(address, sbtcToken, config) : null;
+    const sBtcBalance = sbtcToken
+      ? await this.constructFtBalance(address, sbtcToken, config)
+      : null;
 
     return {
       raw: balanceData,
@@ -127,7 +159,11 @@ export class MockAccountBalanceService {
   /**
    * Format decimal values
    */
-  private formatDecimals(value: number | string, decimals: number, isUmicro: boolean): string {
+  private formatDecimals(
+    value: number | string,
+    decimals: number,
+    isUmicro: boolean
+  ): string {
     if (isUmicro) {
       return (Number(value) * 10 ** decimals).toFixed(0);
     } else {
@@ -160,7 +196,7 @@ export class MockAccountBalanceService {
     config?: Partial<ApiConfig>
   ): Promise<GetFungibleTokenMeta> {
     await this.delay(200);
-    
+
     // Return mock FT metadata
     return {
       name: "Bitcoin",
@@ -191,7 +227,7 @@ export class MockAccountBalanceService {
     config?: Partial<ApiConfig>
   ): Promise<GetNoneFungibleTokenMeta> {
     await this.delay(200);
-    
+
     // Return mock NFT metadata
     return {
       count: "5",
@@ -203,21 +239,21 @@ export class MockAccountBalanceService {
         attributes: [
           {
             trait_type: "Rarity",
-            value: "Common"
-          }
-        ]
+            value: "Common",
+          },
+        ],
       },
       assets: Promise.resolve([
         {
           asset_identifier: assetIdentifier,
           value: {
             hex: "0x01",
-            repr: "1"
+            repr: "1",
           },
           block_height: 12345,
-          tx_id: "mock-nft-tx-id"
-        }
-      ])
+          tx_id: "mock-nft-tx-id",
+        },
+      ]),
     };
   }
 
@@ -229,8 +265,12 @@ export class MockAccountBalanceService {
     ftRes: FtResponseBalance,
     config?: Partial<ApiConfig>
   ): Promise<FungibleType | null> {
-    const tokenMeta = await this.handleGetFtMeta(address, ftRes.asset_identifier.split("::")[0], config);
-    
+    const tokenMeta = await this.handleGetFtMeta(
+      address,
+      ftRes.asset_identifier.split("::")[0],
+      config
+    );
+
     if (!tokenMeta) {
       return null;
     }
@@ -255,8 +295,13 @@ export class MockAccountBalanceService {
     nftRes: NftResponseBalance,
     config?: Partial<ApiConfig>
   ): Promise<nftInfoType | null> {
-    const nftMeta = await this.handleGetNftMeta(address, nftRes.asset_identifier.split("::")[0], 1, config);
-    
+    const nftMeta = await this.handleGetNftMeta(
+      address,
+      nftRes.asset_identifier.split("::")[0],
+      1,
+      config
+    );
+
     if (!nftMeta) {
       return null;
     }
@@ -266,6 +311,128 @@ export class MockAccountBalanceService {
       token_uri: nftMeta.token_uri,
       metadata: nftMeta.metadata,
       assets: nftMeta.assets,
+    };
+  }
+
+  /**
+   * Clear cache (no-op for mock service)
+   */
+  clearCache(): void {
+    // No cache in mock service, this is a no-op
+  }
+
+  /**
+   * Fetch all metadata for FT and NFT tokens
+   */
+  async fetchAllMetadata(
+    ftTokens: FtResponseBalance[],
+    nftTokens: NftResponseBalance[],
+    address: string,
+    config?: Partial<ApiConfig>
+  ): Promise<{
+    ftMetadata: Record<string, ftInfoType | null>;
+    nftMetadata: Record<string, NftMetadataResponse>;
+  }> {
+    await this.delay(300);
+
+    // Return mock metadata
+    const ftMetadata: Record<string, ftInfoType | null> = {};
+    const nftMetadata: Record<string, NftMetadataResponse> = {};
+
+    for (const ft of ftTokens) {
+      ftMetadata[ft.asset_identifier] = await this.handleGetFtMeta(
+        address,
+        ft.asset_identifier,
+        config
+      );
+    }
+
+    for (const nft of nftTokens) {
+      nftMetadata[nft.asset_identifier] = await this.handleGetNftMeta(
+        address,
+        nft.asset_identifier,
+        1,
+        config
+      );
+    }
+
+    return { ftMetadata, nftMetadata };
+  }
+
+  /**
+   * Fetch NFT holdings for specific assets
+   */
+  async fetchNftHoldings(
+    walletAddress: string,
+    assetIdentifiers: string[],
+    offset: number = 0,
+    limit: number = 50,
+    config?: Partial<ApiConfig>
+  ): Promise<{ results: nftAssetType[]; total: number } | null> {
+    await this.delay(400);
+
+    // Return mock NFT holdings
+    return {
+      results: assetIdentifiers
+        .slice(offset, offset + limit)
+        .map((assetId, index) => ({
+          asset_identifier: assetId,
+          value: {
+            hex: `0x${(offset + index + 1).toString(16)}`,
+            repr: `${offset + index + 1}`,
+          },
+          block_height: 12345 + index,
+          tx_id: `mock-nft-tx-${offset + index}`,
+        })),
+      total: assetIdentifiers.length,
+    };
+  }
+
+  /**
+   * Fetch metadata for NFT items
+   */
+  async fetchNftItemsMetadata(
+    nftItems: nftAssetType[],
+    config?: Partial<ApiConfig>
+  ): Promise<
+    (nftAssetType & { metadata?: metaDataType; metadataLoading: boolean })[]
+  > {
+    await this.delay(300);
+
+    // Return mock items with metadata
+    return nftItems.map((item) => ({
+      ...item,
+      metadata: {
+        name: `Mock NFT #${item.value?.repr || "1"}`,
+        description: "A mock NFT item",
+        image: "https://example.com/nft.png",
+        attributes: [],
+      },
+      metadataLoading: false,
+    }));
+  }
+
+  /**
+   * Fetch metadata for a single NFT item
+   */
+  async fetchSingleNftItemMetadata(
+    item: nftAssetType,
+    config?: Partial<ApiConfig>
+  ): Promise<
+    nftAssetType & { metadata?: metaDataType; metadataLoading: boolean }
+  > {
+    await this.delay(200);
+
+    // Return item with metadata
+    return {
+      ...item,
+      metadata: {
+        name: `Mock NFT #${item.value?.repr || "1"}`,
+        description: "A mock NFT item",
+        image: "https://example.com/nft.png",
+        attributes: [],
+      },
+      metadataLoading: false,
     };
   }
 
@@ -295,11 +462,12 @@ export class MockAccountBalanceService {
           total_sent: "10000000",
           total_received: "35000000",
         },
-        "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7.example-token::example-token": {
-          balance: "1000000000", // 10 tokens
-          total_sent: "500000000",
-          total_received: "1500000000",
-        },
+        "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7.example-token::example-token":
+          {
+            balance: "1000000000", // 10 tokens
+            total_sent: "500000000",
+            total_received: "1500000000",
+          },
       },
       non_fungible_tokens: {
         "SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7.example-nft::example-nft": {

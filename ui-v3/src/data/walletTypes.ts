@@ -15,7 +15,7 @@ export type ContractType = {
   btcHolding?: number; // BTC balance held by the wallet
 };
 
-export const ContractTypes: ContractType[] = [
+export const CONTRACT_TYPES: ContractType[] = [
   {
     icon: "👥",
     name: "smart-wallet",
@@ -49,7 +49,7 @@ export const getVerifiedContracts = async (
   walletId: string
 ): Promise<ContractType[]> => {
   const deployedContractCheck = await Promise.all(
-    ContractTypes.map(async (info) => {
+    CONTRACT_TYPES.map(async (info) => {
       const found = await handleCCS(
         walletId,
         `${walletId}.${info.name}`,
