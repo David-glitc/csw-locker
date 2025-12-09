@@ -1,47 +1,16 @@
-import axios from "axios";
+import {
+  Client,
+  createClient,
+  OperationResponse,
+} from "@stacks/blockchain-api-client"; // Import the Stacks client
+import { paths } from "@stacks/blockchain-api-client/lib/generated/schema";
 import { formatDistanceToNow } from "date-fns";
 import { getClientConfig } from "../utils/chain-config";
 import { Recipient, TxInfo } from "./interfaces";
 import { RecipientStorageService } from "./recipientStorageService";
-import { deserializeCV } from "@stacks/transactions";
-import { hexToBytes } from "@stacks/common";
 
-interface StacksTransactionEvent {
-  events: Record<string, unknown>;
-  stx_received: string;
-  stx_sent: string;
-  tx: {
-    token_transfer?: {
-      amount: string;
-      recipient_address: string;
-    };
-    tx_id: string;
-    tx_status: string;
-    tx_type: string;
-    block_time_iso: string;
-    sender_address: string;
-    nonce?: number;
-    contract_call?: {
-      function_name: string;
-      function_args: Array<{
-        repr: string;
-        hex: string;
-      }>;
-    };
-    post_conditions: Array<{
-      asset?: {
-        asset_name: string;
-        contract_address: string;
-        contract_name: string;
-      };
-      amount?: string;
-      principal: {
-        address: string;
-        contract_name?: string;
-      };
-    }>;
-  };
-}
+type StacksTransactionEvent =
+  OperationResponse["/extended/v1/address/{principal}/transactions_with_transfers"]["results"][number];
 
 interface PostConditionAsset {
   name: string;
@@ -65,12 +34,18 @@ interface SwTxCache {
 }
 
 export class TransactionDataService {
+  private client: Client<paths, `${string}/${string}`>; // Declare the client
   private cache: TransactionCache = {};
   private readonly CACHE_TTL = 30000; // 30 seconds cache TTL
   private swTxCache: SwTxCache = {};
   private readonly SW_TX_CACHE_TTL = 30000; // 30 seconds
   private lastRequestTime = 0;
   private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second minimum between requests
+
+  constructor() {
+    const { api } = getClientConfig(); // Get the API config
+    this.client = createClient({ baseUrl: api }); // Initialize the client
+  }
 
   private isCacheValid(address: string): boolean {
     const cached = this.cache[address];
@@ -121,20 +96,33 @@ export class TransactionDataService {
       // Enforce rate limiting to avoid CORS errors
       await this.enforceRateLimit();
 
-      const { api } = getClientConfig(walletAddress);
-      const response = await axios.get<{ results: StacksTransactionEvent[] }>(
-        `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=20&offset=${offset}`,
+      const response = await this.client.GET(
+        "/extended/v1/address/{principal}/transactions_with_transfers",
         {
-          timeout: 10000, // 10 second timeout
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
+          params: {
+            path: {
+              principal: walletAddress,
+            },
+            query: {
+              limit: 20,
+              offset: offset,
+            },
           },
         }
       );
 
-      if (response?.data?.results) {
-        return response.data.results;
+      if (response.data) {
+        return response.data.results
+          .filter((tx) => tx.tx.tx_type === "token_transfer")
+          .map((tx) => {
+            return {
+              ...tx,
+              tx: {
+                ...tx.tx,
+              },
+              events: {},
+            };
+          });
       }
 
       return [];
@@ -145,7 +133,7 @@ export class TransactionDataService {
       );
 
       // If it's a rate limit error, wait a bit longer before throwing
-      if (axios.isAxiosError(error) && error.response?.status === 429) {
+      if (error.response?.status === 429) {
         console.warn("Rate limit exceeded, waiting 2 seconds before retry...");
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
@@ -168,7 +156,7 @@ export class TransactionDataService {
 
     // stacking / delegate-stx
     if (
-      txData.contract_call &&
+      txData.tx_type === "contract_call" &&
       // assume txData.contract_call.contract_id === address for now &&
       txData.contract_call.function_name === "extension-call"
     ) {
@@ -186,7 +174,7 @@ export class TransactionDataService {
 
     // transfer wallet
     if (
-      txData.contract_call &&
+      txData.tx_type === "contract_call" &&
       // assume txData.contract_call.contract_id === address for now &&
       txData.contract_call.function_name === "transfer-wallet"
     ) {
@@ -219,7 +207,7 @@ export class TransactionDataService {
     pcSender: string | undefined
   ): string {
     if (
-      txData.contract_call &&
+      txData.tx_type === "contract_call" &&
       // assume txData.contract_call.contract_id === address for now &&
       txData.contract_call.function_name === "transfer-wallet"
     ) {
@@ -229,7 +217,7 @@ export class TransactionDataService {
     const isStx = stxsent > 0 || stxreceived > 0;
 
     const txSender =
-      txData.contract_call &&
+      txData.tx_type === "contract_call" &&
       txData.contract_call.function_name.startsWith("transfer") &&
       txData.contract_call.function_args.length > 1
         ? txData.contract_call.function_args[1].repr?.replace("'", "")
@@ -248,7 +236,7 @@ export class TransactionDataService {
   }
 
   private processTransactionData(
-    tx: StacksTransactionEvent,
+    tx: OperationResponse["/extended/v1/address/{principal}/transactions_with_transfers"]["results"][number],
     address: string
   ): TxInfo {
     const { stx_sent, stx_received, tx: txData } = tx;
@@ -259,14 +247,25 @@ export class TransactionDataService {
     console.log(txData.tx_id, txData?.post_conditions);
     const pcAssetsAndAmounts: PostConditionAsset[] =
       txData?.post_conditions?.length > 0
-        ? txData.post_conditions.map((c) => ({
-            name: c?.asset?.asset_name ?? "Stacks",
-            amount: c.amount ?? "0",
-            asset: c?.asset?.contract_address
-              ? `${c.asset.contract_address}.${c.asset.contract_name}`
-              : "STX",
-            symbol: c?.asset?.asset_name?.replace("-token", "") ?? "STX",
-          }))
+        ? txData.post_conditions.map((c) => {
+            switch (c.type) {
+              case "fungible":
+                return {
+                  name: c.asset.asset_name,
+                  amount: c.amount,
+                  asset: `${c.asset.contract_address}.${c.asset.contract_name}`,
+                  symbol: c.asset.asset_name.replace("-token", ""),
+                };
+              case "stx": {
+                return {
+                  name: "Stacks",
+                  amount: c.amount,
+                  asset: "STX",
+                  symbol: "STX",
+                };
+              }
+            }
+          })
         : txData?.tx_type === "token_transfer" && txData.token_transfer
         ? [
             {
@@ -278,9 +277,13 @@ export class TransactionDataService {
           ]
         : [];
 
-    const pcSender = txData?.post_conditions?.[0]?.principal?.contract_name
-      ? `${txData.post_conditions[0].principal.address}.${txData.post_conditions[0].principal.contract_name}`
-      : txData.post_conditions?.[0]?.principal?.address;
+    const firstPCPrincipal = txData?.post_conditions?.[0]?.principal;
+    const pcSender =
+      firstPCPrincipal.type_id === "principal_contract"
+        ? `${firstPCPrincipal.address}.${firstPCPrincipal.contract_name}`
+        : firstPCPrincipal.type_id === "principal_standard"
+        ? firstPCPrincipal.address
+        : undefined;
 
     const action = this.determineTransactionAction(
       txData,
@@ -293,7 +296,7 @@ export class TransactionDataService {
 
     // Special case: contract_deploy that's not confirmed gets empty assets
     const assets =
-      txData.tx_type === "contract_deploy" && normalizedStatus !== "confirmed"
+      txData.tx_type === "smart_contract" && normalizedStatus !== "confirmed"
         ? []
         : pcAssetsAndAmounts;
 
@@ -460,47 +463,12 @@ export class TransactionDataService {
 
   async getTransactionCount(walletAddress: string): Promise<number> {
     try {
-      const { api } = getClientConfig(walletAddress);
+      const response = await this.client.GET(
+        "/extended/v1/address/{principal}/transactions",
+        { params: { path: { principal: walletAddress }, query: { limit: 1 } } }
+      );
 
-      // First, get the total count by making a request to count all transactions
-      // We'll make multiple requests with increasing offsets until we find no more transactions
-      let totalCount = 0;
-      let offset = 0;
-      const limit = 50; // Use a larger limit for efficiency
-      let hasMoreTransactions = true;
-
-      while (hasMoreTransactions) {
-        const response = await axios.get<{ results: StacksTransactionEvent[] }>(
-          `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=${limit}&offset=${offset}`,
-          {
-            timeout: 10000,
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (response?.data?.results && response.data.results.length > 0) {
-          totalCount += response.data.results.length;
-
-          // If we got fewer results than the limit, we've reached the end
-          if (response.data.results.length < limit) {
-            hasMoreTransactions = false;
-          } else {
-            offset += limit;
-          }
-        } else {
-          hasMoreTransactions = false;
-        }
-
-        // Add a small delay to avoid rate limiting
-        if (hasMoreTransactions) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
-
-      return totalCount;
+      return response.data?.total || 0; // Return the total count of transactions
     } catch (error) {
       console.error("Error fetching transaction count:", error);
       return 0;

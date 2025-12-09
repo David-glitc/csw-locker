@@ -1,33 +1,27 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wallet, Send, Play } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { useGlobalWallet } from "@/hooks/useGlobalWallet";
-import SecondaryButton from "../ui/secondary-button";
+import { useWalletConnection } from "@/contexts";
+import { Play, Send, Wallet } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import PrimaryButton from "../ui/primary-button";
-import { useEffect } from "react";
+import SecondaryButton from "../ui/secondary-button";
 
 const HeroSection = () => {
-  const { isWalletConnected, connectWallet, isConnecting, walletData, hasWallet } = useGlobalWallet();
+  const { isConnecting, isConnected, connect } = useWalletConnection();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    console.log({ isWalletConnected, hasWallet, walletData })
-  }, [isWalletConnected, hasWallet, walletData])
-
   const handleGetStarted = () => {
-    if (isWalletConnected && hasWallet) {
+    if (isConnected) {
       // Navigate to dashboard if already connected
-      navigate('/wallet-selector');
+      navigate("/wallet-selector");
     } else {
       // Connect wallet if not connected
-      connectWallet();
+      connect();
     }
   };
 
   const handleDemoMode = () => {
     // Navigate to wallet selector for demo mode
-    navigate('/wallet-selector?demo=true');
+    navigate("/wallet-selector?demo=true");
   };
 
   return (
@@ -52,9 +46,12 @@ const HeroSection = () => {
             </h1>
 
             <div className="space-y-2">
-              <p className="text-xl text-slate-300">Seamless. Secure. Scalable.</p>
+              <p className="text-xl text-slate-300">
+                Seamless. Secure. Scalable.
+              </p>
               <p className="text-slate-400 max-w-md">
-                Start your blockchain journey with tools designed to empower every user.
+                Start your blockchain journey with tools designed to empower
+                every user.
               </p>
             </div>
           </div>
@@ -65,13 +62,14 @@ const HeroSection = () => {
               size="lg"
               disabled={isConnecting}
             >
-              {isConnecting ? "Connecting..." : (isWalletConnected && hasWallet) ? "Go to Dashboard" : "Connect Wallet"}
+              {isConnecting
+                ? "Connecting..."
+                : isWalletConnected
+                ? "Go to Dashboard"
+                : "Connect Wallet"}
               <Send className="ml-2 h-4 w-4" />
             </PrimaryButton>
-            <SecondaryButton
-              onClick={handleDemoMode}
-              size="lg"
-            >
+            <SecondaryButton onClick={handleDemoMode} size="lg">
               <Play className="mr-2 h-4 w-4" />
               Try Demo
             </SecondaryButton>
@@ -85,9 +83,13 @@ const HeroSection = () => {
                 <Wallet className="h-8 w-8 text-purple-400" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-semibold text-white">Smart Contract Wallet</h3>
+                <h3 className="text-xl font-semibold text-white">
+                  Smart Contract Wallet
+                </h3>
                 <p className="text-slate-400 text-sm">
-                  A secure smart contract solution designed to hold assets in the name of one or more users, enhancing both security and usability.
+                  A secure smart contract solution designed to hold assets in
+                  the name of one or more users, enhancing both security and
+                  usability.
                 </p>
               </div>
             </CardContent>

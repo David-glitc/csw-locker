@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
 import {
   connect,
   disconnect,
-  isConnected,
   getLocalStorage,
+  isConnected,
 } from "@stacks/connect";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 // Define the wallet data interface based on what @stacks/connect actually returns
 interface UserWalletData {

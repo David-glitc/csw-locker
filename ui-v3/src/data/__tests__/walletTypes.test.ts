@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getVerifiedContracts, ContractTypes } from "../walletTypes";
+import { getVerifiedContracts, CONTRACT_TYPES } from "../walletTypes";
 import { handleCCS } from "@/services/smartWalletContractService";
 
 // Mock the smartWalletContractService
@@ -22,11 +22,11 @@ describe("getVerifiedContracts", () => {
 
     const result = await getVerifiedContracts(testWalletId);
 
-    expect(result).toHaveLength(ContractTypes.length);
+    expect(result).toHaveLength(CONTRACT_TYPES.length);
     expect(result.every((contract) => contract.isDeployed === true)).toBe(true);
 
     // Verify handleCCS was called for each contract
-    expect(mockHandleCCS).toHaveBeenCalledTimes(ContractTypes.length);
+    expect(mockHandleCCS).toHaveBeenCalledTimes(CONTRACT_TYPES.length);
     expect(mockHandleCCS).toHaveBeenCalledWith(
       testWalletId,
       `${testWalletId}.smart-wallet`,
@@ -45,11 +45,11 @@ describe("getVerifiedContracts", () => {
 
     const result = await getVerifiedContracts(testWalletId);
 
-    expect(result).toHaveLength(ContractTypes.length);
+    expect(result).toHaveLength(CONTRACT_TYPES.length);
     expect(result.every((contract) => contract.isDeployed === false)).toBe(
       true
     );
-    expect(mockHandleCCS).toHaveBeenCalledTimes(ContractTypes.length);
+    expect(mockHandleCCS).toHaveBeenCalledTimes(CONTRACT_TYPES.length);
   });
 
   it("should handle mixed deployment statuses", async () => {
@@ -88,8 +88,8 @@ describe("getVerifiedContracts", () => {
 
   it("should handle contracts marked as coming soon", async () => {
     // Create a modified contract list with a coming soon contract
-    const originalContractTypes = [...ContractTypes];
-    ContractTypes.push({
+    const originalContractTypes = [...CONTRACT_TYPES];
+    CONTRACT_TYPES.push({
       icon: "🔮",
       name: "future-contract",
       src: "/future-contract.clar",
@@ -115,7 +115,7 @@ describe("getVerifiedContracts", () => {
     expect(result[result.length - 1]).toBe(comingSoonContract);
 
     // Cleanup
-    ContractTypes.length = originalContractTypes.length;
+    CONTRACT_TYPES.length = originalContractTypes.length;
   });
 
   it("should preserve original contract properties", async () => {
@@ -168,7 +168,7 @@ describe("getVerifiedContracts", () => {
 
     await getVerifiedContracts(testWalletId);
 
-    ContractTypes.forEach((contract, index) => {
+    CONTRACT_TYPES.forEach((contract, index) => {
       expect(mockHandleCCS).toHaveBeenNthCalledWith(
         index + 1,
         testWalletId,

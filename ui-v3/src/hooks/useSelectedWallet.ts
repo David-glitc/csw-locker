@@ -39,7 +39,7 @@ export const useSelectedWallet = () => {
           ...wallet,
           address: wallet.contractId,
           isAdmin: isAdmin,
-          isImported: Boolean(wallet?.isImported),
+          isImported: false,
         };
 
         setSelectedWallet(extendedWallet);
