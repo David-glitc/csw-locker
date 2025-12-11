@@ -4,7 +4,7 @@ export function getClientConfig(address: string) {
   // Automatic detection based on address prefix
   // Mainnet: SP, SM; Testnet: ST, SN
   const network: StacksNetworkName =
-    address.startsWith("SP") || address.startsWith("SM")
+    address?.startsWith("SP") || address?.startsWith("SM")
       ? "mainnet"
       : "testnet";
   return {

@@ -64,7 +64,7 @@ const HeroSection = () => {
             >
               {isConnecting
                 ? "Connecting..."
-                : isWalletConnected
+                : isConnected
                 ? "Go to Dashboard"
                 : "Connect Wallet"}
               <Send className="ml-2 h-4 w-4" />
