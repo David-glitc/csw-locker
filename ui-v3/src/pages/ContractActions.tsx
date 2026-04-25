@@ -70,14 +70,14 @@ const ContractActions = () => {
                 <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
                   <SelectValue placeholder="Select transaction type" />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-600">
-                  <SelectItem value="readonly">Read-only Call</SelectItem>
-                  <SelectItem value="transaction">State-changing Transaction</SelectItem>
+                <SelectContent className="bg-slate-800 border-slate-600 text-white shadow-lg">
+                  <SelectItem value="readonly" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Read-only Call</SelectItem>
+                  <SelectItem value="transaction" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">State-changing Transaction</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <Button 
+            <Button
               className="w-full bg-purple-600 hover:bg-purple-700"
               disabled={!contractAddress || !functionName}
             >
@@ -101,7 +101,7 @@ const ContractActions = () => {
                   Use
                 </Button>
               </div>
-              
+
               <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
                 <div>
                   <div className="text-white font-medium">Wrapped Bitcoin</div>
@@ -111,7 +111,7 @@ const ContractActions = () => {
                   Use
                 </Button>
               </div>
-              
+
               <div className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
                 <div>
                   <div className="text-white font-medium">NFT Collection</div>

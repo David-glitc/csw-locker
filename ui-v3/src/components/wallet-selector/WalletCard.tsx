@@ -1,4 +1,3 @@
-
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,15 +10,16 @@ import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 
 interface WalletCardProps {
   wallet: SmartWallet;
-  isDemoMode: boolean;
 }
 
-const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
+const WalletCard = ({ wallet }: WalletCardProps) => {
   // Use "demo" as the wallet ID for demo wallets to enable special routing
   const [copied, setCopied] = useState(false);
-  const { stxBalance, sBtcBalance } = useAccountBalanceService(wallet.contractId)
-  const { updateSelectedWallet } = useSelectedWallet()
-  const navigate = useNavigate()
+  const { stxBalance, sBtcBalance } = useAccountBalanceService(
+    wallet.contractId
+  );
+  const { updateSelectedWallet } = useSelectedWallet();
+  const navigate = useNavigate();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(wallet.contractId);
@@ -33,8 +33,6 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
     });
     navigate(`/dashboard/${wallet.contractId}`);
   };
-
-  console.log('wallet', { wallet, isEx: !wallet.ext })
 
   return (
     <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-600/50 transition-colors">
@@ -50,7 +48,7 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
             )}
           </CardTitle>
 
-          {!wallet.ext &&
+          {!wallet.ext && (
             <Button
               variant="ghost"
               size="sm"
@@ -61,8 +59,7 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
                 <Settings className="h-4 w-4" />
               </Link>
             </Button>
-          }
-
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -70,31 +67,38 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
           <div className="text-slate-400 text-sm">Contract Id</div>
           <div className="flex gap-5 items-center">
             <div className="text-white font-mono text-sm">
-              {wallet.contractId.slice(0, 5)}...{wallet.contractId.slice(wallet.contractId.length - 15, wallet.contractId.length)}
+              {wallet.contractId.slice(0, 5)}...
+              {wallet.contractId.slice(
+                wallet.contractId.length - 15,
+                wallet.contractId.length
+              )}
             </div>
             <Button
               size="sm"
               onClick={handleCopy}
-              className={copied ? 'text-green-500' : 'text-muted-foreground'}
+              className={copied ? "text-green-500" : "text-muted-foreground"}
             >
               <CopyIcon />
             </Button>
           </div>
-
         </div>
 
         <div className="flex flex-between gap-5">
           <div>
             <div className="text-slate-400 text-sm">STX Balance</div>
-            <div className="text-white font-semibold">{stxBalance?.balance ?? '0.000'}</div>
+            <div className="text-white font-semibold">
+              {stxBalance?.balance ?? "0.000"}
+            </div>
           </div>
           <div>
             <div className="text-slate-400 text-sm">sBTC Balance</div>
-            <div className="text-white font-semibold">{sBtcBalance?.balance ?? '0.0000'}</div>
+            <div className="text-white font-semibold">
+              {sBtcBalance?.balance ?? "0.0000"}
+            </div>
           </div>
         </div>
 
-        {wallet.extensions && wallet.extensions.length > 0 &&
+        {wallet.extensions && wallet.extensions.length > 0 && (
           <div>
             <div className="text-slate-400 text-sm">Extensions</div>
             <div className="flex flex-wrap gap-1 mt-1">
@@ -108,22 +112,22 @@ const WalletCard = ({ wallet, isDemoMode }: WalletCardProps) => {
               ))}
             </div>
           </div>
-        }
+        )}
 
         <div>
           <div className="text-slate-400 text-sm">Created</div>
           <div className="text-white font-semibold">{wallet.createdAt}</div>
         </div>
 
-        {!wallet.ext && (<div className="pt-4">
-          <GreenButton className="w-full" onClick={handleOpenWallet}>
-            Open Wallet
-          </GreenButton>
-        </div>
+        {!wallet.ext && (
+          <div className="pt-4">
+            <GreenButton className="w-full" onClick={handleOpenWallet}>
+              Open Wallet
+            </GreenButton>
+          </div>
         )}
-
-      </CardContent >
-    </Card >
+      </CardContent>
+    </Card>
   );
 };
 

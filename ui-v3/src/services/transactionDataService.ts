@@ -1,42 +1,16 @@
-import axios from "axios";
+import {
+  Client,
+  createClient,
+  OperationResponse,
+} from "@stacks/blockchain-api-client"; // Import the Stacks client
+import { paths } from "@stacks/blockchain-api-client/lib/generated/schema";
 import { formatDistanceToNow } from "date-fns";
 import { getClientConfig } from "../utils/chain-config";
-import { TxAssetInfo, TxInfo, Transaction, Recipient } from './interfaces';
-import { RecipientStorageService } from './recipientStorageService';
+import { Recipient, TxInfo } from "./interfaces";
+import { RecipientStorageService } from "./recipientStorageService";
 
-interface StacksTransactionEvent {
-  events: Record<string, unknown>;
-  stx_received: string;
-  stx_sent: string;
-  tx: {
-    token_transfer?: {
-      amount: string;
-    };
-    tx_id: string;
-    tx_status: string;
-    tx_type: string;
-    block_time_iso: string;
-    sender_address: string;
-    contract_call?: {
-      function_name: string;
-      function_args: Array<{
-        repr: string;
-      }>;
-    };
-    post_conditions: Array<{
-      asset?: {
-        asset_name: string;
-        contract_address: string;
-        contract_name: string;
-      };
-      amount?: string;
-      principal: {
-        address: string;
-        contract_name?: string;
-      };
-    }>;
-  };
-}
+type StacksTransactionEvent =
+  OperationResponse["/extended/v1/address/{principal}/transactions_with_transfers"]["results"][number];
 
 interface PostConditionAsset {
   name: string;
@@ -45,20 +19,33 @@ interface PostConditionAsset {
   symbol: string;
 }
 
-
-
 interface TransactionCache {
   [address: string]: {
-    transactions: Transaction[];
+    transactions: TxInfo[];
+    lastFetched: number;
+  };
+}
+
+interface SwTxCache {
+  [address: string]: {
+    transactions: TxInfo[];
     lastFetched: number;
   };
 }
 
 export class TransactionDataService {
+  private client: Client<paths, `${string}/${string}`>; // Declare the client
   private cache: TransactionCache = {};
   private readonly CACHE_TTL = 30000; // 30 seconds cache TTL
-  private swTxCache: TransactionCache = {};
+  private swTxCache: SwTxCache = {};
   private readonly SW_TX_CACHE_TTL = 30000; // 30 seconds
+  private lastRequestTime = 0;
+  private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second minimum between requests
+
+  constructor() {
+    const { api } = getClientConfig(); // Get the API config
+    this.client = createClient({ baseUrl: api }); // Initialize the client
+  }
 
   private isCacheValid(address: string): boolean {
     const cached = this.cache[address];
@@ -72,110 +59,291 @@ export class TransactionDataService {
     return Date.now() - cached.lastFetched < this.SW_TX_CACHE_TTL;
   }
 
-  private processTransactionData(tx: StacksTransactionEvent): Transaction {
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+
+    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+      const delay = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    this.lastRequestTime = Date.now();
+  }
+
+  /**
+   * Retrieves transaction data from Hiro API with rate limiting to avoid CORS errors
+   * @param walletAddress - The wallet address to fetch transactions for
+   * @param offset - The offset for pagination (default: 0)
+   * @returns Promise<StacksTransactionEvent[]> - Array of transaction events
+   *
+   * @example
+   * ```typescript
+   * const transactionService = new TransactionDataService();
+   *
+   * // Fetch first 20 transactions
+   * const transactions = await transactionService.fetchTransactionsFromAPI('SP123...', 0);
+   *
+   * // Fetch next 20 transactions (pagination)
+   * const nextPage = await transactionService.fetchTransactionsFromAPI('SP123...', 20);
+   * ```
+   */
+  async fetchTransactionsFromAPI(
+    walletAddress: string,
+    offset: number = 0
+  ): Promise<StacksTransactionEvent[]> {
+    try {
+      // Enforce rate limiting to avoid CORS errors
+      await this.enforceRateLimit();
+
+      const response = await this.client.GET(
+        "/extended/v1/address/{principal}/transactions_with_transfers",
+        {
+          params: {
+            path: {
+              principal: walletAddress,
+            },
+            query: {
+              limit: 20,
+              offset: offset,
+            },
+          },
+        }
+      );
+
+      if (response.data) {
+        return response.data.results
+          .filter((tx) => tx.tx.tx_type === "token_transfer")
+          .map((tx) => {
+            return {
+              ...tx,
+              tx: {
+                ...tx.tx,
+              },
+              events: {},
+            };
+          });
+      }
+
+      return [];
+    } catch (error) {
+      console.error(
+        `Error fetching transactions for address ${walletAddress}:`,
+        error
+      );
+
+      // If it's a rate limit error, wait a bit longer before throwing
+      if (error.response?.status === 429) {
+        console.warn("Rate limit exceeded, waiting 2 seconds before retry...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      throw error;
+    }
+  }
+
+  public determineTransactionAction(
+    txData: StacksTransactionEvent["tx"],
+    stxsent: number,
+    stxreceived: number,
+    pcSender: string | undefined,
+    address: string
+  ): TxInfo["action"] {
+    // deploy smart contract
+    if (txData.tx_type === "smart_contract") {
+      return "contract_deploy";
+    }
+
+    // stacking / delegate-stx
+    if (
+      txData.tx_type === "contract_call" &&
+      // assume txData.contract_call.contract_id === address for now &&
+      txData.contract_call.function_name === "extension-call"
+    ) {
+      if (txData.contract_call.function_args.length > 1) {
+        const extension = txData.contract_call.function_args[0].repr?.replace(
+          /'/g,
+          ""
+        );
+        const [, extName] = extension.split(".");
+        if (extName === "ext-delegate-stx-pox-4") {
+          return "delegate_stx";
+        }
+      }
+    }
+
+    // transfer wallet
+    if (
+      txData.tx_type === "contract_call" &&
+      // assume txData.contract_call.contract_id === address for now &&
+      txData.contract_call.function_name === "transfer-wallet"
+    ) {
+      return "transfer_wallet";
+    }
+
+    // deposit withdraw from smart contract
+    if (txData.tx_type === "token_transfer" && txData.token_transfer) {
+      return txData.token_transfer.recipient_address === address
+        ? "deposit"
+        : "withdraw";
+    }
+    const isStx = stxsent > 0 || stxreceived > 0;
+
+    if (isStx) {
+      return stxsent > 0 ? "sent" : "receive";
+    } else {
+      if (txData.post_conditions?.length === 0) {
+        return "contract_call";
+      } else {
+        return pcSender === address ? "sent" : "receive";
+      }
+    }
+  }
+
+  public determineActor(
+    txData: StacksTransactionEvent["tx"],
+    stxsent: number,
+    stxreceived: number,
+    pcSender: string | undefined
+  ): string {
+    if (
+      txData.tx_type === "contract_call" &&
+      // assume txData.contract_call.contract_id === address for now &&
+      txData.contract_call.function_name === "transfer-wallet"
+    ) {
+      return txData.contract_call.function_args[0].repr?.replace("'", "") || "";
+    }
+
+    const isStx = stxsent > 0 || stxreceived > 0;
+
+    const txSender =
+      txData.tx_type === "contract_call" &&
+      txData.contract_call.function_name.startsWith("transfer") &&
+      txData.contract_call.function_args.length > 1
+        ? txData.contract_call.function_args[1].repr?.replace("'", "")
+        : txData.sender_address;
+    if (isStx) {
+      return stxreceived > 0
+        ? txSender
+        : stxsent > 0
+        ? txSender
+        : pcSender ?? txSender;
+    } else {
+      return txData.post_conditions?.length > 0
+        ? pcSender ?? txSender
+        : txSender;
+    }
+  }
+
+  private processTransactionData(
+    tx: OperationResponse["/extended/v1/address/{principal}/transactions_with_transfers"]["results"][number],
+    address: string
+  ): TxInfo {
     const { stx_sent, stx_received, tx: txData } = tx;
     const stxsent = Number(stx_sent);
     const stxreceived = Number(stx_received);
+    const normalizedStatus = getNormalizedStatus(txData.tx_status);
 
+    console.log(txData.tx_id, txData?.post_conditions);
     const pcAssetsAndAmounts: PostConditionAsset[] =
       txData?.post_conditions?.length > 0
-        ? txData.post_conditions.map((c) => ({
-            name: c?.asset?.asset_name ?? "Stacks",
-            amount: c.amount ?? "0",
-            asset: c?.asset?.contract_address
-              ? `${c.asset.contract_address}.${c.asset.contract_name}`
-              : "STX",
-            symbol: c?.asset?.asset_name?.replace("-token", "") ?? "STX",
-          }))
+        ? txData.post_conditions.map((c) => {
+            switch (c.type) {
+              case "fungible":
+                return {
+                  name: c.asset.asset_name,
+                  amount: c.amount,
+                  asset: `${c.asset.contract_address}.${c.asset.contract_name}`,
+                  symbol: c.asset.asset_name.replace("-token", ""),
+                };
+              case "stx": {
+                return {
+                  name: "Stacks",
+                  amount: c.amount,
+                  asset: "STX",
+                  symbol: "STX",
+                };
+              }
+            }
+          })
         : txData?.tx_type === "token_transfer" && txData.token_transfer
-          ? [
-              {
-                name: "Stacks",
-                amount: txData.token_transfer.amount,
-                asset: "STX",
-                symbol: "STX",
-              },
-            ]
-          : [];
+        ? [
+            {
+              name: "Stacks",
+              amount: txData.token_transfer.amount,
+              asset: "STX",
+              symbol: "STX",
+            },
+          ]
+        : [];
 
-    const pcSender = txData?.post_conditions?.[0]?.principal?.contract_name
-      ? `${txData.post_conditions[0].principal.address}.${txData.post_conditions[0].principal.contract_name}`
-      : txData.post_conditions?.[0]?.principal?.address;
+    const firstPCPrincipal = txData?.post_conditions?.[0]?.principal;
+    const pcSender =
+      firstPCPrincipal.type_id === "principal_contract"
+        ? `${firstPCPrincipal.address}.${firstPCPrincipal.contract_name}`
+        : firstPCPrincipal.type_id === "principal_standard"
+        ? firstPCPrincipal.address
+        : undefined;
 
-    const txSender =
-      txData?.contract_call?.function_args?.[1]?.repr?.replace("'", "") ??
-      txData.sender_address;
+    const action = this.determineTransactionAction(
+      txData,
+      stxsent,
+      stxreceived,
+      pcSender,
+      address
+    );
+    const actor = this.determineActor(txData, stxsent, stxreceived, pcSender);
 
-    // Normalize status: treat 'success' as 'confirmed', and failed-like statuses as 'failed'
-    let normalizedStatus = txData.tx_status;
-    if (normalizedStatus === "success") normalizedStatus = "confirmed";
-    const failedStatuses = [
-      "abort_by_post_condition",
-      "abort_by_response",
-      "dropped",
-      "error",
-      "failed",
-      "rejected",
-      "abort",
-    ];
-    if (failedStatuses.includes(normalizedStatus)) {
-      normalizedStatus = "failed";
-    }
+    // Special case: contract_deploy that's not confirmed gets empty assets
+    const assets =
+      txData.tx_type === "smart_contract" && normalizedStatus !== "confirmed"
+        ? []
+        : pcAssetsAndAmounts;
+
     return {
-      id: txData.tx_id,
-      action:
-        stxsent > 0
-          ? "sent"
-          : stxreceived > 0
-            ? "receive"
-            : (txData?.contract_call?.function_name ?? txData.tx_type),
-      from: txSender,
-      to: pcSender ?? "",
-      amount: pcAssetsAndAmounts[0]?.amount ?? "0",
-      asset: pcAssetsAndAmounts[0]?.symbol ?? "STX",
-      assetType: "token",
-      timestamp: formatDistanceToNow(new Date(txData.block_time_iso)),
-      status: normalizedStatus as "pending" | "confirmed" | "failed",
-      txHash: txData.tx_id,
+      action,
+      actor,
+      stamp: formatDistanceToNow(txData.block_time_iso),
+      time: txData.block_time_iso,
+      assets,
+      tx: txData.tx_id,
+      tx_status: normalizedStatus,
+      tx_type: txData.tx_type,
     };
   }
 
   async getRecentTransactions(
     walletAddress: string,
     offset = 0
-  ): Promise<Transaction[]> {
+  ): Promise<TxInfo[]> {
     if (this.isCacheValid(walletAddress) && offset === 0) {
       return this.cache[walletAddress].transactions;
     }
 
     try {
-      const { api } = getClientConfig(walletAddress);
-      const response = await axios.get<{ results: StacksTransactionEvent[] }>(
-        `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=20&offset=${offset}`
+      const results = await this.fetchTransactionsFromAPI(
+        walletAddress,
+        offset
+      );
+      const transactions = results.map((tx) =>
+        this.processTransactionData(tx, walletAddress)
       );
 
-      if (response?.data?.results) {
-        const transactions = response.data.results.map((tx) =>
-          this.processTransactionData(tx)
+      if (offset === 0) {
+        this.cache[walletAddress] = {
+          transactions,
+          lastFetched: Date.now(),
+        };
+      } else if (this.cache[walletAddress]) {
+        // Append new transactions to cache if they don't already exist
+        const existingTxs = this.cache[walletAddress].transactions;
+        const newTxs = transactions.filter(
+          (tx) => !existingTxs.some((existing) => existing.tx === tx.tx)
         );
-
-        if (offset === 0) {
-          this.cache[walletAddress] = {
-            transactions,
-            lastFetched: Date.now(),
-          };
-        } else if (this.cache[walletAddress]) {
-          // Append new transactions to cache if they don't already exist
-          const existingTxs = this.cache[walletAddress].transactions;
-          const newTxs = transactions.filter(
-            (tx) => !existingTxs.some((existing) => existing.id === tx.id)
-          );
-          this.cache[walletAddress].transactions = [...existingTxs, ...newTxs];
-        }
-
-        return transactions;
+        this.cache[walletAddress].transactions = [...existingTxs, ...newTxs];
       }
-      return [];
+
+      return transactions;
     } catch (error) {
       console.error("Error fetching transactions:", error);
       return [];
@@ -193,44 +361,49 @@ export class TransactionDataService {
       transactions
         .filter((tx) => tx.action === "sent")
         .forEach((tx) => {
-          const existing = recipientMap.get(tx.to);
-          if (existing) {
-            recipientMap.set(tx.to, {
-              lastSent: tx.timestamp,
-              frequency: existing.frequency + 1,
-            });
-          } else {
-            recipientMap.set(tx.to, {
-              lastSent: tx.timestamp,
-              frequency: 1,
-            });
-          }
+          tx.assets.forEach((asset) => {
+            const existing = recipientMap.get(asset.recipient);
+            if (existing) {
+              recipientMap.set(asset.recipient, {
+                lastSent: tx.stamp,
+                frequency: existing.frequency + 1,
+              });
+            } else {
+              recipientMap.set(asset.recipient, {
+                lastSent: tx.stamp,
+                frequency: 1,
+              });
+            }
+          });
         });
 
-      const apiRecipients = Array.from(recipientMap.entries()).map(([address, data]) => ({
-        address,
-        lastSent: data.lastSent,
-        frequency: data.frequency,
-      }));
+      const apiRecipients = Array.from(recipientMap.entries()).map(
+        ([address, data]) => ({
+          address,
+          lastSent: data.lastSent,
+          frequency: data.frequency,
+        })
+      );
 
       // Get recipients from localStorage
-      const storageRecipients = RecipientStorageService.getRecentRecipientsFromStorage();
-      
+      const storageRecipients =
+        RecipientStorageService.getRecentRecipientsFromStorage();
+
       // Combine and deduplicate recipients (localStorage takes precedence for frequency)
       const combinedRecipients = new Map();
-      
+
       // Add API recipients first
-      apiRecipients.forEach(recipient => {
+      apiRecipients.forEach((recipient) => {
         combinedRecipients.set(recipient.address, recipient);
       });
-      
+
       // Add/update with localStorage recipients (they have more accurate frequency data)
-      storageRecipients.forEach(recipient => {
+      storageRecipients.forEach((recipient) => {
         combinedRecipients.set(recipient.address, recipient);
       });
-      
+
       const allRecipients = Array.from(combinedRecipients.values());
-      
+
       // Filter out removed recipients using localStorage
       return RecipientStorageService.filterRemovedRecipients(allRecipients);
     } catch (error) {
@@ -250,108 +423,15 @@ export class TransactionDataService {
       );
       return;
     }
-    const { api } = getClientConfig(address);
+
     try {
-      const res = await axios.get(
-        `${api}/extended/v2/addresses/${address}/transactions?limit=20&offset=${offset}`
-      );
-      if (res?.data?.results) {
-        const { results } = res.data;
-        const constructTx = results.map((info: StacksTransactionEvent) => {
-          const { stx_sent, stx_received, tx } = info;
-          const stxsent = Number(stx_sent);
-          const stxreceived = Number(stx_received);
-          let normalizedStatus = tx.tx_status;
-          if (normalizedStatus === "success") normalizedStatus = "confirmed";
-          const failedStatuses = [
-            "abort_by_post_condition",
-            "abort_by_response",
-            "dropped",
-            "error",
-            "failed",
-            "rejected",
-            "abort",
-          ];
-          if (failedStatuses.includes(normalizedStatus)) {
-            normalizedStatus = "failed";
+      const results = await this.fetchTransactionsFromAPI(address, offset);
+      if (results) {
+        const constructTx = results.map(
+          (info: StacksTransactionEvent): TxInfo => {
+            return this.processTransactionData(info, address);
           }
-          const pcAssetsAndAmounts =
-            tx?.post_conditions?.length > 0
-              ? tx?.post_conditions.map((c) => {
-                  const asset = c?.asset?.contract_address
-                    ? `${c?.asset?.contract_address}.${c?.asset?.contract_name}`
-                    : "STX";
-                  const symbol = c?.asset?.asset_name?.replace("-token", "");
-                  return {
-                    name: c?.asset?.asset_name ?? "Stacks",
-                    amount: c.amount ?? "0",
-                    asset,
-                    symbol: symbol ?? "STX",
-                  };
-                })
-              : tx?.tx_type === "token_transfer"
-                ? [
-                    {
-                      name: "Stacks",
-                      amount: tx?.token_transfer?.amount ?? "0",
-                      asset: "STX",
-                      symbol: "STX",
-                    },
-                  ]
-                : [];
-          const pcSender = tx?.post_conditions?.[0]?.principal?.contract_name
-            ? `${tx?.post_conditions?.[0]?.principal?.address}.${tx?.post_conditions?.[0]?.principal?.contract_name}`
-            : tx?.post_conditions?.[0]?.principal?.address;
-          const txSender =
-            tx?.contract_call?.function_args[1]?.repr?.replace("'", "") ??
-            tx?.sender_address;
-          const isStx = stxsent > 0 || stxreceived > 0;
-          // Special handling for contract_deploy
-          if (tx.tx_type === "contract_deploy") {
-            if (normalizedStatus !== "confirmed") {
-              return {
-                action: tx?.contract_call?.function_name ?? tx.tx_type,
-                sender: txSender,
-                stamp: formatDistanceToNow(tx?.block_time_iso),
-                time: tx?.block_time_iso,
-                assets: [],
-                tx: tx?.tx_id,
-                tx_status: normalizedStatus,
-                tx_type: tx.tx_type,
-              };
-            }
-          }
-          if (isStx) {
-            return {
-              action: stxsent > 0 ? "sent" : "receive",
-              sender:
-                stxreceived > 0 ? txSender : stxsent > 0 ? txSender : pcSender,
-              stamp: formatDistanceToNow(tx?.block_time_iso),
-              assets: pcAssetsAndAmounts,
-              tx: tx?.tx_id,
-              tx_status: normalizedStatus,
-              tx_type: tx.tx_type,
-            };
-          } else {
-            return {
-              action:
-                tx?.post_conditions?.length === 0
-                  ? tx?.contract_call?.function_name
-                    ? tx?.contract_call?.function_name
-                    : tx?.tx_type
-                  : pcSender === address
-                    ? "sent"
-                    : "receive",
-              sender: tx?.post_conditions?.length > 0 ? pcSender : txSender,
-              stamp: formatDistanceToNow(tx?.block_time_iso),
-              time: tx?.block_time_iso,
-              assets: pcAssetsAndAmounts,
-              tx: tx?.tx_id,
-              tx_status: normalizedStatus,
-              tx_type: tx.tx_type,
-            };
-          }
-        });
+        );
         if (offset === 0) {
           this.swTxCache[address] = {
             transactions: constructTx,
@@ -359,8 +439,7 @@ export class TransactionDataService {
           };
           setSwTx(() => constructTx);
         } else if (this.swTxCache[address]) {
-          const existingTxs = this.swTxCache[address]
-            .transactions as unknown as TxInfo[];
+          const existingTxs = this.swTxCache[address].transactions;
           const newTxs = (constructTx ?? []).filter(
             (tx: TxInfo) =>
               !existingTxs.some((existing) => existing?.tx === tx.tx)
@@ -378,20 +457,41 @@ export class TransactionDataService {
       }
     } catch (e) {
       // Handle error silently
+      console.log("Error in handleGetSwTx:", e);
     }
   };
 
   async getTransactionCount(walletAddress: string): Promise<number> {
     try {
-      const { api } = getClientConfig(walletAddress);
-      const response = await axios.get<{ total: number }>(
-        `${api}/extended/v2/addresses/${walletAddress}/transactions?limit=1`
+      const response = await this.client.GET(
+        "/extended/v1/address/{principal}/transactions",
+        { params: { path: { principal: walletAddress }, query: { limit: 1 } } }
       );
-      // Hiro API returns total count in response.data.total
-      return response?.data?.total ?? 0;
+
+      return response.data?.total || 0; // Return the total count of transactions
     } catch (error) {
       console.error("Error fetching transaction count:", error);
       return 0;
     }
   }
 }
+
+// returns "confirmed" or "failed" (or unchanged value for unknown statuses)
+const getNormalizedStatus = (
+  status: string
+): "pending" | "confirmed" | "failed" => {
+  if (status === "success") return "confirmed";
+  const failedStatuses = [
+    "abort_by_post_condition",
+    "abort_by_response",
+    "dropped",
+    "error",
+    "failed",
+    "rejected",
+    "abort",
+  ];
+  if (failedStatuses.includes(status)) {
+    return "failed";
+  }
+  return "pending";
+};

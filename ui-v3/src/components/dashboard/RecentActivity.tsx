@@ -4,10 +4,13 @@ import { Activity, ArrowUpRight, ArrowDownLeft, TrendingUp, Loader2 } from "luci
 import { Link, useParams } from "react-router-dom";
 import SecondaryButton from "../ui/secondary-button";
 import { useCallback, useEffect, useState } from "react";
-import { TxInfo, TransactionDataService } from "@/services/transactionDataService";
+import { TransactionDataService } from "@/services/transactionDataService";
+import { TxInfo } from "@/services/interfaces";
 import { formatAmount } from "@/lib/txFormatUtils";
 import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import { Skeleton } from "@/components/ui/skeleton";
+import TransactionItem from "../transactions/TransactionItem";
+import PrimaryButton from "../ui/primary-button";
 
 interface RecentActivityProps {
   walletAddress?: string; // connected wallet
@@ -17,7 +20,7 @@ interface RecentActivityProps {
 const transactionService = new TransactionDataService();
 
 const RecentActivity = ({ walletAddress, smartWalletAddress }: RecentActivityProps) => {
-  const { walletId } = useParams<{walletId:`${string}.${string}`}>()
+  const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
   const [activities, setActivities] = useState<TxInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -158,59 +161,27 @@ const RecentActivity = ({ walletAddress, smartWalletAddress }: RecentActivityPro
               </div>
             ))
           ) : (
-            activities.slice(0, 5).map((activity) => {
-              const Icon = getActivityIcon(activity.action);
-              const activityColor = getActivityColor(activity.action);
-              const statusColor = getStatusColor(activity.tx_status);
-              const asset = activity.assets[0]?.symbol || 'STX';
-              const amount = activity.assets[0]?.amount || '0';
-              return (
-                <div
-                  key={activity.tx}
-                  className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-full bg-slate-600/50 flex items-center justify-center`}>
-                      <Icon className={`h-4 w-4 ${activityColor}`} />
-                    </div>
-                    <div>
-                      <div className="text-white font-medium capitalize">
-                        {activity.action} {asset}
-                      </div>
-                      <div className="text-slate-400 text-sm">{activity.stamp}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {(activity.action === "sent" || activity.action === "receive" || (activity.tx_type !== "contract_call" && activity.tx_type !== "smart_contract")) ? (
-                      <div className={`font-medium ${activityColor}`}>
-                        {activity.action === "sent" ? '-' : activity.action === "receive" ? '+' : ''}{formatAmount(amount, asset === 'SBTC' ? 8 : 6)} {asset}
-                        {asset === 'STX' && stxUsd && (
-                          <span className="text-xs text-slate-400 ml-2">
-                            (${((Number(amount) / 1e6) * stxUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD)
-                          </span>
-                        )}
-                      </div>
-                    ) : null}
-                    <div className={`text-sm capitalize ${statusColor}`}>
-                      {activity.tx_status}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+            activities.slice(0, 5).map((activity) => (
+              <TransactionItem
+                key={activity.tx}
+                tx={activity}
+                stxUsd={stxUsd}
+                walletId={walletId}
+                showFullDetails={false}
+              />
+            ))
           )}
         </div>
         {/* Only show the button if there are more than 5 activities */}
         <div className="flex justify-end mt-4">
-          <Button 
-            onClick={handleRefresh} 
-            variant="secondary"
+          <PrimaryButton
+            onClick={handleRefresh}
             className="flex items-center justify-center min-w-[90px]"
             disabled={refreshing || loading}
           >
             {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Refresh
-          </Button>
+          </PrimaryButton>
         </div>
       </CardContent>
     </Card>

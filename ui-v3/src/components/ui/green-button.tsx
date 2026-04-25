@@ -8,12 +8,13 @@ interface GreenButtonProps extends ButtonProps {
 }
 
 const GreenButton = React.forwardRef<HTMLButtonElement, GreenButtonProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ disabled, className, children, ...props }, ref) => {
     return (
       <Button
         ref={ref}
         className={cn(
-          "bg-green-600 hover:bg-green-700 text-white",
+          disabled ? "border-green-600 bg-green-700/20 opacity-60 cursor-not-allowed hover:bg-green-700/20" :
+            "bg-green-600 hover:bg-green-700 text-white",
           className
         )}
         {...props}

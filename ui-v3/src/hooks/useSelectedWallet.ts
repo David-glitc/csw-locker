@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SmartWallet } from "@/services/interfaces";
 import useSmartWalletContractService from "./useSmartWalletContractService";
-import { useWalletConnection } from "./useWalletConnection";
+import { useUserWalletConnection } from "./useWalletConnection";
 import { useTxServices } from "./useTxServices";
 
 interface SelectedWallet extends SmartWallet {
@@ -13,11 +12,12 @@ interface SelectedWallet extends SmartWallet {
 }
 
 export const useSelectedWallet = () => {
-  const [selectedWallet, setSelectedWallet] = useState<Partial<SelectedWallet> | null>(null);
-  const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
-  const { walletData } = useWalletConnection()
-  const { isAdmin: validateIsAdmin } = useTxServices()
-  const { validateSmartContract } = useSmartWalletContractService()
+  const [selectedWallet, setSelectedWallet] =
+    useState<Partial<SelectedWallet> | null>(null);
+  const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
+  const { userData } = useUserWalletConnection();
+  const { isAdmin: validateIsAdmin } = useTxServices();
+  const { validateSmartContract } = useSmartWalletContractService();
 
   useEffect(() => {
     if (!walletId) {
@@ -33,18 +33,17 @@ export const useSelectedWallet = () => {
           return;
         }
 
-        const isAdmin = await validateIsAdmin(walletId.split('.')[0], walletId);
+        const isAdmin = await validateIsAdmin(walletId.split(".")[0], walletId);
 
         const extendedWallet = {
           ...wallet,
           address: wallet.contractId,
           isAdmin: isAdmin,
-          isImported: Boolean(wallet?.isImported),
+          isImported: false,
         };
 
-                    setSelectedWallet(extendedWallet);
+        setSelectedWallet(extendedWallet);
       } catch (error) {
-        console.error('Failed to validate wallet:', error);
         setSelectedWallet(null);
       }
     };
@@ -57,13 +56,16 @@ export const useSelectedWallet = () => {
   };
 
   const updateSelectedWallet = async (wallet: Partial<SelectedWallet>) => {
-    const isAdmin = await validateIsAdmin(walletData?.addresses.stx?.[0]?.address, wallet.contractId)
+    const isAdmin = await validateIsAdmin(
+      userData?.addresses.stx?.[0]?.address,
+      wallet.contractId
+    );
     const extendedWallet = {
       ...wallet,
       address: wallet.contractId,
       isAdmin: isAdmin,
       isImported: Boolean(wallet?.isImported),
-    }
+    };
     setSelectedWallet(extendedWallet);
   };
 
@@ -71,6 +73,6 @@ export const useSelectedWallet = () => {
     selectedWallet,
     switchWallet,
     updateSelectedWallet,
-    isLoading: !selectedWallet
+    isLoading: !selectedWallet,
   };
 };
