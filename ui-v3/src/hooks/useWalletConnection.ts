@@ -23,3 +23,17 @@ export const useWalletConnection = () => {
     disconnectWallet,
   };
 };
+
+// Backward-compatible alias used by newer UI components.
+export const useUserWalletConnection = () => {
+  const { isWalletConnected, walletData, isConnecting, connectWallet, disconnectWallet } =
+    useWalletConnection();
+
+  return {
+    isWalletConnected,
+    userData: walletData,
+    isConnecting,
+    connectWallet,
+    disconnectWallet,
+  };
+};
