@@ -2,16 +2,20 @@ import WalletLayout from "@/components/WalletLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { History ,ArrowDownLeft, ArrowUpRight, TrendingUp, Loader2, ExternalLink, X, ArrowDownRight, Clock, FileCode, RefreshCw, Send, Wallet, ArrowDownLeft as IncomingArrow, Filter } from "lucide-react";
+import { History, Loader2, ExternalLink, X, Clock, FileCode, RefreshCw, Send, Wallet, Filter, Bitcoin } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import SecondaryButton from "@/components/ui/secondary-button";
 import { TxInfo, TransactionDataService } from "@/services/transactionDataService";
 import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import { Skeleton } from "@/components/ui/skeleton";
-import{ formatAmount } from "@/lib/txFormatUtils"
+import { formatAmount } from "@/lib/txFormatUtils";
 import { useParams } from "react-router-dom";
-import { getClientConfig } from "@/utils/chain-config"
+import { getClientConfig } from "@/utils/chain-config";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBtcWallet } from "@/contexts/BtcWalletContext";
+import { getAddressTxs, getMempoolTxUrl, type MempoolBtcTx } from "@/services/btcMempoolService";
+import PrimaryButton from "@/components/ui/primary-button";
 
 
 const transactionService = new TransactionDataService();
@@ -28,8 +32,12 @@ const ActionHistory = () => {
   const [filterAction, setFilterAction] = useState<string>("all");
   const [showFilter, setShowFilter] = useState(false);
   const [stxUsd, setStxUsd] = useState<number | null>(null);
+  const [chainTab, setChainTab] = useState<"stacks" | "bitcoin">("stacks");
+  const { activeBtcAddress, connectBtcWallet, connecting: btcConnecting } = useBtcWallet();
+  const [btcTxs, setBtcTxs] = useState<MempoolBtcTx[]>([]);
+  const [btcLoading, setBtcLoading] = useState(false);
 
-  const { walletId } = useParams<{walletId:`${string}.${string}`}>();
+  const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
   const fetchTransactions = useCallback((currentOffset: number = 0) => {
     if (!walletId && !selectedWallet?.address) return;
     setIsLoading(true);
@@ -62,6 +70,16 @@ const ActionHistory = () => {
     fetchStxUsdPrice().then(setStxUsd);
   }, []);
 
+  useEffect(() => {
+    if (chainTab !== "bitcoin" || !activeBtcAddress) {
+      setBtcTxs([]);
+      return;
+    }
+    setBtcLoading(true);
+    getAddressTxs(activeBtcAddress)
+      .then(setBtcTxs)
+      .finally(() => setBtcLoading(false));
+  }, [chainTab, activeBtcAddress]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -151,6 +169,19 @@ const ActionHistory = () => {
           </p>
         </div>
 
+        <Tabs
+          value={chainTab}
+          onValueChange={(v) => setChainTab(v as "stacks" | "bitcoin")}
+          className="w-full"
+        >
+          <TabsList className="grid w-full max-w-md grid-cols-2 bg-slate-800/80 border border-slate-700">
+            <TabsTrigger value="stacks">Stacks</TabsTrigger>
+            <TabsTrigger value="bitcoin" className="inline-flex items-center gap-1">
+              <Bitcoin className="h-3.5 w-3.5" />
+              Bitcoin
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="stacks" className="mt-4 space-y-6">
         <Card className="bg-slate-800/50 border-slate-700 relative">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -360,6 +391,56 @@ const ActionHistory = () => {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="bitcoin" className="mt-4">
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Bitcoin className="h-5 w-5 text-amber-400" />
+                  Bitcoin activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!activeBtcAddress ? (
+                  <div className="space-y-3 text-slate-300 text-sm">
+                    <p>Connect a Bitcoin wallet to see on-chain history (Mempool).</p>
+                    <PrimaryButton
+                      onClick={() => void connectBtcWallet()}
+                      disabled={btcConnecting}
+                      className="w-full sm:w-auto"
+                    >
+                      {btcConnecting ? "Opening…" : "Connect Bitcoin wallet"}
+                    </PrimaryButton>
+                  </div>
+                ) : btcLoading && btcTxs.length === 0 ? (
+                  <div className="text-slate-500 text-sm">Loading…</div>
+                ) : btcTxs.length === 0 ? (
+                  <p className="text-slate-500 text-sm">No transactions found for this address yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                    {btcTxs.map((t) => (
+                      <div
+                        key={t.txid}
+                        className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg text-sm"
+                      >
+                        <span className="font-mono text-slate-300 break-all pr-2">{t.txid}</span>
+                        <a
+                          href={getMempoolTxUrl(t.txid, activeBtcAddress)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="shrink-0 text-purple-400 flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </WalletLayout>
   );

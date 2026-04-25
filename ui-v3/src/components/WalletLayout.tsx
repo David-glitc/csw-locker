@@ -1,29 +1,46 @@
-import {  useParams, useSearchParams } from "react-router-dom";
-import { ReactNode, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import WalletHeader from "./WalletHeader";
 import MobileNavigationDrawer from "./MobileNavigationDrawer";
 import DesktopSidebar from "./DesktopSidebar";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
-import useGetRates from "@/hooks/useGetRates";
 import { formatNumber } from "@/utils/numbers";
+import { useAssetPrices } from "@/contexts/AssetPricesContext";
+import {
+   loadNetworkPreference,
+   saveNetworkPreference,
+   NETWORK_CHANGED_EVENT,
+   type NetworkPreference,
+} from "@/lib/networkPreference";
 
 interface WalletLayoutProps {
    children: ReactNode;
 }
 
+function inferNetworkFromWalletId(walletId: string | undefined): NetworkPreference {
+   if (!walletId) return "mainnet";
+   return walletId.startsWith("SP") || walletId.startsWith("SM") ? "mainnet" : "testnet";
+}
+
 const WalletLayout = ({ children }: WalletLayoutProps) => {
    const { walletId } = useParams();
    const { selectedWallet } = useSelectedWallet();
-   const [selectedNetwork, setSelectedNetwork] = useState<"mainnet" | "testnet">("mainnet");
+   const [selectedNetwork, setSelectedNetwork] = useState<NetworkPreference>(
+      () => loadNetworkPreference() ?? inferNetworkFromWalletId(walletId)
+   );
    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-   const [networkParams, setNetworkParams] = useSearchParams();
+   const [, setNetworkParams] = useSearchParams();
+   // Track the last wallet id we auto-synced from so we only overwrite a user choice
+   // when the wallet itself actually changes — not on every re-render.
+   const syncedWalletIdRef = useRef<string | undefined>(undefined);
 
-   const { stxBalance, loading, error } = useAccountBalanceService(walletId)
-   const { rates: stxRate, loading: loadingStxRate } = useGetRates(".stx")
+   const { stxBalance, loading } = useAccountBalanceService(walletId ?? "");
+   const { stxUsd: stxUsdPerUnit } = useAssetPrices();
 
-   const handleNetworkSwitch = (network: "mainnet" | "testnet") => {
+   const handleNetworkSwitch = (network: NetworkPreference) => {
       setSelectedNetwork(network);
+      saveNetworkPreference(network);
       setNetworkParams({ network });
    };
 
@@ -31,17 +48,44 @@ const WalletLayout = ({ children }: WalletLayoutProps) => {
       setIsMobileMenuOpen(!isMobileMenuOpen);
    };
 
+   // Auto-detect network on first mount *for a given walletId* only when the user has
+   // not already expressed a preference. This preserves manual overrides across navigations.
    useEffect(() => {
-      const isMainnet = walletId?.startsWith("SP") || walletId?.startsWith("SM")
-      setSelectedNetwork(isMainnet ? "mainnet" : "testnet");
-      setNetworkParams({ network: isMainnet ? "mainnet" : "testnet" });
-   }, [networkParams, setNetworkParams]);
+      if (walletId == null || walletId === "") return;
+      if (syncedWalletIdRef.current === walletId) return;
+      syncedWalletIdRef.current = walletId;
+      const stored = loadNetworkPreference();
+      if (stored != null) {
+         setSelectedNetwork(stored);
+         setNetworkParams({ network: stored });
+         return;
+      }
+      const inferred = inferNetworkFromWalletId(walletId);
+      setSelectedNetwork(inferred);
+      setNetworkParams({ network: inferred });
+   }, [walletId, setNetworkParams]);
+
+   // Listen for external preference changes (other tabs, other components).
+   useEffect(() => {
+      const onChange = (e: Event) => {
+         const ce = e as CustomEvent<NetworkPreference | null>;
+         if (ce.detail === "mainnet" || ce.detail === "testnet") {
+            setSelectedNetwork(ce.detail);
+         }
+      };
+      window.addEventListener(NETWORK_CHANGED_EVENT, onChange);
+      return () => window.removeEventListener(NETWORK_CHANGED_EVENT, onChange);
+   }, []);
 
    const currentWallet = {
       name: selectedWallet?.name,
       contractId: selectedWallet?.contractId,
-      balance: stxBalance ? `${Number(formatNumber(+stxBalance?.balance, stxBalance?.decimal)).toFixed(4) ?? '0.0000'}` : "0.0000",
-      usdValue: stxBalance && stxRate ? `$${formatNumber(+stxBalance?.balance * +stxRate?.usdPrice, 2)}` : "..."
+      balance: loading && !stxBalance ? "—" : stxBalance ? formatNumber(Math.abs(+stxBalance.balance), 2) : "0.00",
+      usdValue: !stxBalance
+         ? "—"
+         : stxUsdPerUnit != null
+           ? `$${formatNumber(+stxBalance.balance * stxUsdPerUnit, 2)}`
+           : "—",
    };
 
    return (

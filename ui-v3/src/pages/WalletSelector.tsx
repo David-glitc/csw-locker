@@ -1,12 +1,14 @@
 import PrimaryButton from "@/components/ui/primary-button";
-import { Plus } from "lucide-react";
+import { Bitcoin, Plus } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { isOnboardingComplete } from "@/lib/onboardingStorage";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { useSmartWalletContractService } from "@/hooks/useSmartWalletContractService";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import WalletSelectorHeader from "@/components/wallet-selector/WalletSelectorHeader";
 import WalletCard from "@/components/wallet-selector/WalletCard";
+import BtcVaultCard from "@/components/wallet-selector/BtcVaultCard";
 import EmptyWalletState from "@/components/wallet-selector/EmptyWalletState";
 import LoadingState from "@/components/wallet-selector/LoadingState";
 import AddExistingWalletDialog from "@/components/wallet-selector/AddExistingWalletDialog";
@@ -14,12 +16,14 @@ import { SmartWallet, ContractInfoEntry } from "@/services/interfaces";
 import Notice from "@/components/wallet-selector/Notice";
 import { useToast } from "@/hooks/use-toast";
 import { useAccountBalanceService } from "@/hooks/useAccountBalanceService";
-import useGetRates from "@/hooks/useGetRates";
+import { useAssetPrices } from "@/contexts/AssetPricesContext";
+import { formatNumber } from "@/utils/numbers";
 import { MockAccountBalanceService } from "@/services/mocks/mockAccountBalanceService";
 import { MockSmartWalletContractService } from "@/services/mocks/mockSmartWalletContractService";
-import { useSelectedWallet } from "@/hooks/useSelectedWallet";
+import { BTC_VAULTS_CHANGED_EVENT, loadBtcVaults, type BtcVaultRecord } from "@/lib/btcVaultStorage";
 
 const WalletSelector = () => {
+  const navigate = useNavigate();
   // State management
   const [isDemoMode, setIsDemo] = useState<boolean>(false);
   const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
@@ -27,12 +31,15 @@ const WalletSelector = () => {
   const [importedWallets, setImportedWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
   const [demoBalance, setDemoBalance] = useState<any>(null);
   const [demoWallets, setDemoWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
+  const [btcVaults, setBtcVaults] = useState<BtcVaultRecord[]>(() =>
+    typeof window !== "undefined" ? loadBtcVaults() : []
+  );
 
   // Hooks
   const { walletData, isWalletConnected } = useWalletConnection();
   const { deployedContracts, deployedContractCount, hasSmartWallets, hasExtensions, loading: deployedContractsLoading, error: deployedContractsError } = useSmartWalletContractService(walletData?.addresses.stx?.[0]?.address);
   const { stxBalance, loading: balanceLoading } = useAccountBalanceService(walletData?.addresses.stx?.[0]?.address);
-  const { loading: rateLoading, usdPrice } = useGetRates('.stx');
+  const { stxUsd, loading: pricesLoading } = useAssetPrices();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
@@ -80,10 +87,26 @@ const WalletSelector = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    if (isWalletConnected && !isOnboardingComplete()) {
+      navigate("/onboarding", { replace: true });
+    }
+  }, [isWalletConnected, navigate]);
+
+  useEffect(() => {
     if (isDemoMode) {
       loadDemoData();
     }
   }, [isDemoMode]);
+
+  useEffect(() => {
+    const sync = () => setBtcVaults(loadBtcVaults());
+    window.addEventListener(BTC_VAULTS_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(BTC_VAULTS_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
 
 
@@ -131,24 +154,26 @@ const WalletSelector = () => {
     ? (demoBalance?.stx?.balance ?? '0.0000')
     : (balanceLoading ? '0.0000' : Number(stxBalance?.balance ?? 0).toFixed(4));
 
-  const usdValue = isDemoMode
-    ? (demoBalance?.stx ? (Number(demoBalance.stx.balance) * Number(usdPrice ?? 0)).toFixed(4) : '0.0000')
-    : (rateLoading ? '0.0000' : (Number(stxBalance?.balance ?? 0) * Number(usdPrice ?? 0)).toFixed(4));
+  const stxAddr = walletData?.addresses?.stx?.[0]?.address ?? null;
+  const stxUsdLabel =
+    isDemoMode
+      ? demoBalance?.stx && stxUsd
+        ? `$${formatNumber(Number(demoBalance.stx.balance) * stxUsd, 2)}`
+        : "—"
+      : pricesLoading
+        ? "—"
+        : stxBalance && stxUsd
+          ? `$${formatNumber(Number(stxBalance.balance) * stxUsd, 2)}`
+          : "—";
 
-  console.log({ 
-    walletsToShow, 
-    deployedContracts, 
-    smartWalletsOnly: deployedContracts.filter(contract => !contract.ext),
-    extensionsOnly: deployedContracts.filter(contract => contract.ext),
-    importedWallets 
-  });
+  const smartNonExtCount = isDemoMode
+    ? demoWallets.filter((w) => !w.ext).length
+    : walletsToShow.filter((w) => !w.ext).length;
+  const hasAnyWallet = smartNonExtCount > 0 || btcVaults.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <WalletSelectorHeader
-        totalBalance={totalBalance}
-        usdValue={usdValue}
-      />
+      <WalletSelectorHeader stxBalance={totalBalance} stxUsd={stxUsdLabel} stxAddress={stxAddr} />
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -161,11 +186,17 @@ const WalletSelector = () => {
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3 justify-end">
               <AddExistingWalletDialog
                 onWalletAdded={handleWalletAdded}
                 isDemoMode={isDemoMode}
               />
+              <PrimaryButton asChild className="bg-amber-600 hover:bg-amber-500 text-white">
+                <Link to="/create-btc-vault">
+                  <Bitcoin className="mr-2 h-4 w-4" />
+                  Create BTC vault
+                </Link>
+              </PrimaryButton>
               <PrimaryButton asChild>
                 <Link to="/create-wallet">
                   <Plus className="mr-2 h-4 w-4" />
@@ -178,11 +209,11 @@ const WalletSelector = () => {
 
           {isDemoMode && <Notice />}
 
-          {deployedContractsLoading
+          {deployedContractsLoading && !isDemoMode
             ? (
               <LoadingState />
             )
-            : !hasSmartWallets
+            : !hasAnyWallet
               ? (<EmptyWalletState />)
               : (
                 <>
@@ -196,6 +227,9 @@ const WalletSelector = () => {
                           isDemoMode={isDemoMode}
                         />
                       ))}
+                    {btcVaults.map((vault) => (
+                      <BtcVaultCard key={vault.id} vault={vault} />
+                    ))}
                   </div>
 
                   {/* Extension Contracts Section */}

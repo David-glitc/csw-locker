@@ -3,11 +3,15 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { WalletProvider } from "@/contexts/WalletContext";
+import { BtcWalletProvider } from "@/contexts/BtcWalletContext";
+import { AssetPricesProvider } from "@/contexts/AssetPricesContext";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import WalletSelector from "./pages/WalletSelector";
+import CreateBtcVault from "./pages/CreateBtcVault";
+import BtcVaultView from "./pages/BtcVaultView";
 import CreateWallet from "./pages/CreateWallet";
 import WalletDetails from "./pages/WalletDetails";
 import SendAssets from "./pages/SendAssets";
@@ -21,6 +25,14 @@ import Terms from "./pages/Terms";
 import About from "./pages/About";
 import Products from "./pages/Products";
 import NotFound from "./pages/NotFound";
+import Onboarding from "./pages/Onboarding";
+import Locks from "./pages/Locks";
+
+const VaultsToLocksRedirect = () => {
+  const { walletId } = useParams<{ walletId: string }>();
+  if (!walletId) return <Navigate to="/" replace />;
+  return <Navigate to={`/locks/${walletId}`} replace />;
+};
 
 const queryClient = new QueryClient();
 
@@ -31,11 +43,16 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <WalletProvider>
+          <AssetPricesProvider>
+            <BtcWalletProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/wallet-selector" element={<WalletSelector />} />
+            <Route path="/create-btc-vault" element={<CreateBtcVault />} />
+            <Route path="/btc-vault/:vaultId" element={<BtcVaultView />} />
             <Route path="/create-wallet" element={<CreateWallet />} />
             <Route path="/wallet-details/:walletId" element={<WalletDetails />} />
             <Route path="/dashboard/:walletId" element={<Dashboard />} />
@@ -46,9 +63,13 @@ const App = () => (
             <Route path="/actions/:walletId?" element={<GenericActions />} />
             <Route path="/contract-actions/:walletId?" element={<ContractActions />} />
             <Route path="/contract-details/:walletId?" element={<ContractDetails />} />
+            <Route path="/vaults/:walletId" element={<VaultsToLocksRedirect />} />
+            <Route path="/locks/:walletId?" element={<Locks />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+            </BtcWalletProvider>
+          </AssetPricesProvider>
         </WalletProvider>
       </BrowserRouter>
     </TooltipProvider>

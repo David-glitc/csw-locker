@@ -13,6 +13,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@noble/hashes": "^1.8.0",
+    "@noble/secp256k1": "^3.1.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
@@ -40,6 +41,8 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
+    "@scure/base": "^2.2.0",
+    "@scure/btc-signer": "^2.0.1",
     "@stacks/connect": "^8.1.9",
     "@stacks/network": "^7.0.2",
     "@stacks/stacks-blockchain-api-types": "^7.14.1",

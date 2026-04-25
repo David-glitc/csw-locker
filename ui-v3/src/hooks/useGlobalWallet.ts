@@ -1,36 +1,28 @@
-import { useWalletContext } from '@/contexts/WalletContext';
+import { useWalletContext } from "@/contexts/WalletContext";
 
 /**
- * Hook to access global wallet connection state
- * Provides reactive access to wallet connection status, data, and actions
+ * Access global wallet state with convenient getters (preferred STX / BTC from normalized session).
  */
 export const useGlobalWallet = () => {
   const context = useWalletContext();
-  
+
   return {
-    // Connection states
     isWalletConnected: context.isWalletConnected,
     isConnecting: context.isConnecting,
-    
-    // Wallet data
     walletData: context.walletData,
-    
-    // Actions
     connectWallet: context.connectWallet,
     disconnectWallet: context.disconnectWallet,
-    
-    // Convenience getters
+
     get stxAddress() {
-      return context.walletData?.addresses.stx[0]?.address || null;
+      return context.walletData?.preferredStx?.address ?? null;
     },
-    
+
     get btcAddress() {
-      return context.walletData?.addresses.btc[0]?.address || null;
+      return context.walletData?.preferredBtc?.address ?? null;
     },
-    
+
     get hasWallet() {
       return context.isWalletConnected && context.walletData !== null;
-    }
+    },
   };
 };
-
