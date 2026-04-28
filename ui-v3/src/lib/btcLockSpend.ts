@@ -13,7 +13,7 @@ import { hex, base64 } from "@scure/base";
 import { Transaction } from "@scure/btc-signer";
 import { btcNetworkFromAddress, networkLabelFromAddress } from "@/lib/btcScript";
 import type { BtcLockRecord } from "@/lib/btcLockStorage";
-import { getAddressUtxos, getTipHeight } from "@/services/btcMempoolService";
+import { getAddressUtxos } from "@/services/btcMempoolService";
 import { getRecommendedFeerates, pickFeerateSatPerVb } from "@/services/bitcoinTxService";
 import { computeBtcPlatformFee } from "@/lib/platformFee";
 
@@ -42,9 +42,8 @@ export async function buildUnlockPsbt(lock: BtcLockRecord): Promise<BuildUnlockP
   const network = btcNetworkFromAddress(lock.ownerBtcAddress);
   const networkLabel = networkLabelFromAddress(lock.ownerBtcAddress);
 
-  const [utxosAll, tipHeight, fees] = await Promise.all([
+  const [utxosAll, fees] = await Promise.all([
     getAddressUtxos(lock.lockAddress),
-    getTipHeight(lock.ownerBtcAddress),
     getRecommendedFeerates(lock.ownerBtcAddress),
   ]);
 
@@ -56,7 +55,9 @@ export async function buildUnlockPsbt(lock: BtcLockRecord): Promise<BuildUnlockP
 
   const feerate = fees ? pickFeerateSatPerVb(fees, DEFAULT_FEE_PRESET) : 5;
   // Budget one extra output if a platform fee will be attached.
-  const platformQuote = computeBtcPlatformFee(totalIn, networkLabel);
+  const platformQuote = computeBtcPlatformFee(totalIn, networkLabel, {
+    enforceMinFloor: false,
+  });
   const extraOutputs = platformQuote.enabled ? 1 : 0;
   const vsize = APPROX_UNLOCK_VSIZE + Math.max(0, utxos.length - 1) * 105 + extraOutputs * 31;
   const feeSats = Math.max(200, Math.ceil(feerate * vsize));
@@ -71,10 +72,11 @@ export async function buildUnlockPsbt(lock: BtcLockRecord): Promise<BuildUnlockP
   const witnessScript = hex.decode(lock.witnessScriptHex);
   const scriptPubkey = hex.decode(lock.scriptPubkeyHex);
 
-  // nLockTime: use max of the lock's unlock time and the current wall clock (already past unlockUnixSec).
-  // Using "now" minimises the chance that a wallet rejects the PSBT for an out-of-range locktime.
   const nowSec = Math.floor(Date.now() / 1000);
-  const lockTime = Math.max(lock.unlockUnixSec, nowSec, tipHeight ?? 0);
+  // CLTV scripts in this app use UNIX timestamp locktimes. For compatibility,
+  // use the script's exact timestamp as tx nLockTime (not current wall-clock).
+  // This avoids accidentally producing a higher locktime than chain MTP.
+  const lockTime = Number.isFinite(lock.unlockUnixSec) && lock.unlockUnixSec > 0 ? lock.unlockUnixSec : nowSec;
 
   const tx = new Transaction({ version: 2, lockTime, allowUnknownInputs: true });
 

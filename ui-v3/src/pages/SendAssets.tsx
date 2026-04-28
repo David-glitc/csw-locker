@@ -6,11 +6,13 @@ import { getStepTitle } from "@/utils/sendAssetsUtils";
 import WizardStepRenderer from "@/components/send/WizardStepRenderer";
 import BtcSendPanel from "@/components/send/BtcSendPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { getBtcVault } from "@/lib/btcVaultStorage";
 
 const SendAssets = () => {
   const { walletId: routeWalletId } = useParams<{ walletId: string }>();
+  const vaultFromRoute = routeWalletId ? getBtcVault(routeWalletId) : null;
   const {
     currentStep,
     amount,
@@ -48,6 +50,8 @@ const SendAssets = () => {
     tabTriggerClass,
     "data-[state=active]:bg-amber-600/45 data-[state=active]:text-amber-50"
   );
+
+  if (vaultFromRoute) return <Navigate to={`/btc-vault/${vaultFromRoute.id}/send`} replace />;
 
   return (
     <WalletLayout>

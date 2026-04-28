@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,18 +38,21 @@ import {
   broadcastRawTx,
   getAddressTxs,
   getTxFull,
+  getTaprootOrdinalInscriptions,
+  type OrdinalInscription,
 } from "@/services/btcMempoolService";
 import { getBitcoinTxExplorerUrl } from "@/services/bitcoinTxService";
 import { base64 } from "@scure/base";
 import { Transaction } from "@scure/btc-signer";
 import { networkLabelFromAddress } from "@/lib/btcScript";
-import { buildVaultSpendPsbt } from "@/lib/btcVaultSpend";
 import { useAssetPrices } from "@/contexts/AssetPricesContext";
 import { request as stacksRequest, JsonRpcError, JsonRpcErrorCode } from "@stacks/connect";
 import { useToast } from "@/hooks/use-toast";
 import { formatBtcFromSats, formatNumber } from "@/utils/numbers";
 import SecondaryButton from "@/components/ui/secondary-button";
 import PrimaryButton from "@/components/ui/primary-button";
+import WalletLayout from "@/components/WalletLayout";
+import { useBtcWallet } from "@/contexts/BtcWalletContext";
 
 const SATS_PER_BTC = 1e8;
 const P2WPKH_DUST = 294;
@@ -99,12 +102,16 @@ function formatRelativeShort(unixSec: number, now: number): string {
 }
 
 const BtcVaultView = () => {
-  const { vaultId } = useParams<{ vaultId: string }>();
+  const navigate = useNavigate();
+  const { vaultId, walletId } = useParams<{ vaultId?: string; walletId?: string }>();
+  const location = useLocation();
+  const effectiveVaultId = vaultId ?? walletId;
   const { toast } = useToast();
   const { btcUsd } = useAssetPrices();
+  const { taprootAddress } = useBtcWallet();
 
   const [vault, setVault] = useState<BtcVaultRecord | null>(() =>
-    vaultId ? getBtcVault(vaultId) ?? null : null
+    effectiveVaultId ? getBtcVault(effectiveVaultId) ?? null : null
   );
   const [balance, setBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
@@ -127,9 +134,15 @@ const BtcVaultView = () => {
     spentToOthersSats: number;
     confirmed: boolean;
     blockTime: number | null;
+    feeSats: number;
+    vin: Array<{ address: string; value: number }>;
+    vout: Array<{ address: string; value: number }>;
   };
   const [recentTxs, setRecentTxs] = useState<VaultActivityRow[] | null>(null);
   const [recentTxsLoading, setRecentTxsLoading] = useState(false);
+  const [expandedTxid, setExpandedTxid] = useState<string | null>(null);
+  const [ordinalInscriptions, setOrdinalInscriptions] = useState<OrdinalInscription[]>([]);
+  const [loadingOrdinals, setLoadingOrdinals] = useState(false);
 
   const [recipient, setRecipient] = useState("");
   const [amountBtc, setAmountBtc] = useState("");
@@ -144,17 +157,34 @@ const BtcVaultView = () => {
   const [signaturesRequired, setSignaturesRequired] = useState<number>(1);
   const [broadcastTxid, setBroadcastTxid] = useState<string | null>(null);
 
+
   // Sync vault from storage on external changes.
   useEffect(() => {
-    if (!vaultId) return;
-    const sync = () => setVault(getBtcVault(vaultId) ?? null);
+    if (!effectiveVaultId) return;
+    const sync = () => setVault(getBtcVault(effectiveVaultId) ?? null);
     window.addEventListener(BTC_VAULTS_CHANGED_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
       window.removeEventListener(BTC_VAULTS_CHANGED_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [vaultId]);
+  }, [effectiveVaultId]);
+
+  useEffect(() => {
+    const path = location.pathname.toLowerCase();
+    const sectionId = path.includes("/send/")
+      ? "vault-send"
+      : path.includes("/receive/")
+      ? "vault-receive"
+      : path.includes("/history/")
+      ? "vault-history"
+      : (location.hash || "").replace("#", "");
+    if (!sectionId) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.hash]);
 
   const refreshBalance = useCallback(async () => {
     if (!vault) return;
@@ -215,6 +245,15 @@ const BtcVaultView = () => {
             spentToOthersSats: outToOthers,
             confirmed: Boolean(f.status?.confirmed),
             blockTime: f.status?.block_time ?? null,
+            feeSats: f.fee ?? 0,
+            vin: (f.vin ?? []).map((v) => ({
+              address: v.prevout?.scriptpubkey_address ?? "Unknown",
+              value: v.prevout?.value ?? 0,
+            })),
+            vout: (f.vout ?? []).map((o) => ({
+              address: o.scriptpubkey_address ?? "Unknown",
+              value: o.value ?? 0,
+            })),
           });
         }
         if (!cancelled) setRecentTxs(rows);
@@ -226,6 +265,25 @@ const BtcVaultView = () => {
       cancelled = true;
     };
   }, [vault?.derivedVaultAddress, vault?.linkedBtcAddress, vault?.network]);
+
+  useEffect(() => {
+    if (!taprootAddress) {
+      setOrdinalInscriptions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingOrdinals(true);
+    void getTaprootOrdinalInscriptions(taprootAddress)
+      .then((rows) => {
+        if (!cancelled) setOrdinalInscriptions(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOrdinals(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [taprootAddress]);
 
   const onChain = vault ? vaultIsOnChain(vault) : false;
   const kind = vault ? getVaultKind(vault) : "solo";
@@ -362,9 +420,45 @@ const BtcVaultView = () => {
     setAmountBtc("");
   };
 
+  const handleDeleteUnfundedVault = () => {
+    if (!vault) return;
+    if ((balance ?? 0) > 0) {
+      toast({
+        title: "Vault has funds",
+        description: "Move funds out before deleting this vault.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const confirmed = window.confirm(`Delete "${vault.name}"? This removes it from this device.`);
+    if (!confirmed) return;
+    removeBtcVault(vault.id);
+    toast({ title: "Vault deleted" });
+    navigate("/wallet-selector");
+  };
+
+  const handleDeleteAttempt = () => {
+    if (!vault) return;
+    if ((balance ?? 0) > 0) {
+      const keep = window.confirm(
+        `This vault still has ${balance ?? 0} sats. Deleting now can hide funds from your list.\n\nKeep this vault and move funds out first?`
+      );
+      if (keep) return;
+      toast({
+        title: "Delete blocked",
+        description: "Vaults with funds cannot be deleted. Move funds out first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleDeleteUnfundedVault();
+  };
+
+
   if (!vault) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <WalletLayout mode="btc-vault">
+        <div className="flex items-center justify-center p-4 min-h-[24rem]">
         <Card className="bg-slate-800/50 border-slate-700 max-w-md w-full">
           <CardContent className="p-6 text-center text-slate-300 space-y-4">
             <AlertTriangle className="h-8 w-8 text-amber-400 mx-auto" />
@@ -374,7 +468,8 @@ const BtcVaultView = () => {
             </Link>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      </WalletLayout>
     );
   }
 
@@ -393,7 +488,6 @@ const BtcVaultView = () => {
 
   const broadcastExplorer = broadcastTxid ? getBitcoinTxExplorerUrl(broadcastTxid, vault.linkedBtcAddress) : null;
   const now = Date.now();
-
   /**
    * Same visual scaffold as `Dashboard.tsx`:
    *   - 3-card overview grid (Vault balance / Total value / Type)
@@ -407,8 +501,11 @@ const BtcVaultView = () => {
    * is its own surface; using the same components and grid keeps the language identical.
    */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
+    <WalletLayout
+      mode="btc-vault"
+      vaultMeta={{ id: vault.id, name: vault.name, address: vault.derivedVaultAddress }}
+    >
+      <div className="space-y-6 max-w-5xl">
         <Link
           to="/wallet-selector"
           className="inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 mb-6"
@@ -423,7 +520,7 @@ const BtcVaultView = () => {
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                 <Bitcoin className="h-7 w-7 text-amber-400" />
-                {vault.name}
+                {vault.name} dashboard
               </h1>
               <p className="text-slate-400 text-sm">
                 Bitcoin vault · {typeLabel.toLowerCase()} · {networkLabel}
@@ -440,6 +537,16 @@ const BtcVaultView = () => {
                   Legacy
                 </span>
               )}
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={handleDeleteAttempt}
+                className="h-7 px-2 text-[11px]"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Delete
+              </Button>
             </div>
           </div>
 
@@ -458,7 +565,7 @@ const BtcVaultView = () => {
                     size="sm"
                     variant="destructive"
                     className="mt-3"
-                    onClick={() => removeBtcVault(vault.id)}
+                    onClick={handleDeleteAttempt}
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-1" />
                     Delete vault
@@ -532,16 +639,10 @@ const BtcVaultView = () => {
                 className="h-20 flex-col"
                 disabled={!onChain}
               >
-                <a
-                  href="#vault-send"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    document.getElementById("vault-send")?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
+                <button type="button" onClick={() => navigate(`/btc-vault/${vault.id}/send`)}>
                   <ArrowUpRight className="h-6 w-6 mb-2" />
                   Send
-                </a>
+                </button>
               </SecondaryButton>
 
               <SecondaryButton
@@ -551,7 +652,7 @@ const BtcVaultView = () => {
               >
                 <button
                   type="button"
-                  onClick={() => handleCopy(vault.derivedVaultAddress, setCopiedAddr)}
+                  onClick={() => navigate(`/receive/${vault.id}`)}
                 >
                   {copiedAddr ? (
                     <Check className="h-6 w-6 mb-2 text-emerald-400" />
@@ -583,6 +684,8 @@ const BtcVaultView = () => {
               </PrimaryButton>
             </CardContent>
           </Card>
+
+
 
           {/* Vault asset overview + recent activity grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -660,11 +763,31 @@ const BtcVaultView = () => {
                     )}
                   </button>
                 </div>
+                <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                  <div className="min-w-0">
+                    <div className="text-white font-medium">Taproot ordinals</div>
+                    <div className="text-slate-400 text-xs">
+                      {taprootAddress
+                        ? `${taprootAddress.slice(0, 10)}…${taprootAddress.slice(-8)}`
+                        : "No taproot address connected"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-white font-medium">
+                      {loadingOrdinals ? "Loading…" : `${ordinalInscriptions.length} inscriptions`}
+                    </div>
+                    {ordinalInscriptions[0]?.id && (
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        {ordinalInscriptions[0].id.slice(0, 10)}…
+                      </div>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             {/* Recent activity, scoped to this vault address */}
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+            <Card id="vault-history" className="bg-slate-800/50 border-slate-700 backdrop-blur-sm scroll-mt-24">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
                 <CardTitle className="text-lg font-medium text-white flex items-center">
                   <Activity className="mr-2 h-5 w-5 text-purple-400" />
@@ -688,13 +811,15 @@ const BtcVaultView = () => {
                       ? tx.netVaultDeltaSats
                       : Math.abs(tx.netVaultDeltaSats);
                     return (
-                      <a
+                      <div
                         key={tx.txid}
-                        href={getBitcoinTxExplorerUrl(tx.txid, vault.linkedBtcAddress)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between p-3 bg-slate-700/30 hover:bg-slate-700/50 rounded-lg transition-colors"
+                        className="p-3 bg-slate-700/30 hover:bg-slate-700/50 rounded-lg transition-colors"
                       >
+                        <button
+                          type="button"
+                          className="w-full text-left flex items-center justify-between"
+                          onClick={() => setExpandedTxid((prev) => (prev === tx.txid ? null : tx.txid))}
+                        >
                         <div className="flex items-center space-x-3 min-w-0">
                           <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
@@ -730,7 +855,43 @@ const BtcVaultView = () => {
                               : "Unconfirmed"}
                           </div>
                         </div>
-                      </a>
+                        </button>
+                        {expandedTxid === tx.txid && (
+                          <div className="mt-3 pt-3 border-t border-slate-700 space-y-2 text-xs">
+                            <a
+                              href={getBitcoinTxExplorerUrl(tx.txid, vault.linkedBtcAddress)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-purple-300 hover:underline"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Open on explorer
+                            </a>
+                            <div className="text-slate-300">Inputs</div>
+                            <div className="space-y-1">
+                              {tx.vin.map((input, idx) => (
+                                <div key={`${tx.txid}-vin-${idx}`} className="flex justify-between gap-2 text-slate-400">
+                                  <span className="font-mono truncate">{input.address}</span>
+                                  <span className="text-slate-200 tabular-nums">{formatBtcFromSats(input.value)} BTC</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="text-slate-300 mt-2">Outputs</div>
+                            <div className="space-y-1">
+                              {tx.vout.map((output, idx) => (
+                                <div key={`${tx.txid}-vout-${idx}`} className="flex justify-between gap-2 text-slate-400">
+                                  <span className="font-mono truncate">{output.address}</span>
+                                  <span className="text-slate-200 tabular-nums">{formatBtcFromSats(output.value)} BTC</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-between text-slate-400 pt-1">
+                              <span>Miner fee</span>
+                              <span className="text-slate-200">{tx.feeSats.toLocaleString()} sats</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })
                 ) : (
@@ -764,251 +925,10 @@ const BtcVaultView = () => {
             </Card>
           )}
 
-          {/* Send flow — preserved verbatim from before, just rebadged for clarity */}
-          {onChain && (
-            <Card id="vault-send" className="bg-slate-800/50 border-emerald-900/40 scroll-mt-24">
-              <CardHeader>
-                <CardTitle className="text-white text-base flex items-center gap-2">
-                  <Send className="h-5 w-5 text-emerald-400" />
-                  Send BTC from vault
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {phase === "sent" ? (
-                  <div className="space-y-3">
-                    <div className="rounded-md border border-emerald-900/40 bg-emerald-950/20 p-3 text-emerald-100/90">
-                      <div className="flex items-center gap-2 font-medium mb-1">
-                        <Check className="h-4 w-4 text-emerald-400" />
-                        Sent successfully
-                      </div>
-                      <p className="text-xs font-mono break-all text-emerald-200">{broadcastTxid}</p>
-                      {broadcastExplorer && (
-                        <a
-                          href={broadcastExplorer}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-purple-300 text-xs hover:underline mt-2"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          View on explorer
-                        </a>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={startAnother}
-                      variant="outline"
-                      className="border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800"
-                    >
-                      Send again
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label className="text-slate-300 text-xs">Recipient address</Label>
-                      <Input
-                        value={recipient}
-                        onChange={(e) => {
-                          setRecipient(e.target.value);
-                          if (phase !== "idle") resetFlow();
-                        }}
-                        disabled={phase !== "idle" && phase !== "awaiting-sign"}
-                        className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
-                        placeholder={networkLabel === "mainnet" ? "bc1q… / bc1p…" : "tb1q… / tb1p…"}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-end justify-between gap-2 flex-wrap">
-                        <Label className="text-slate-300 text-xs">Amount</Label>
-                        <div className="text-[11px] text-slate-400">
-                          Available:{" "}
-                          <span className="text-slate-200 tabular-nums">
-                            {loadingBalance ? "…" : balance != null ? formatBtcFromSats(balance) : "—"}
-                          </span>{" "}
-                          <span className="text-amber-200/70 font-bold text-[10px]">BTC</span>
-                        </div>
-                      </div>
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={amountBtc}
-                          onChange={(e) => {
-                            setAmountBtc(e.target.value);
-                            if (phase !== "idle") resetFlow();
-                          }}
-                          disabled={phase !== "idle" && phase !== "awaiting-sign"}
-                          className="bg-slate-950 border-slate-700 text-white tabular-nums pr-16 h-11"
-                          placeholder="0.001"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-amber-200/80">
-                          BTC
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {PERCENT_CHIPS.map((pct) => (
-                          <button
-                            key={pct}
-                            type="button"
-                            disabled={!hasBalance || (phase !== "idle" && phase !== "awaiting-sign")}
-                            onClick={() => applyPercent(pct)}
-                            className="px-2.5 py-1 rounded-md border text-xs font-medium border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-slate-800 disabled:opacity-40"
-                          >
-                            {pct === 100 ? "Max" : `${pct}%`}
-                          </button>
-                        ))}
-                      </div>
-                      {amountUsd != null && (
-                        <p className="text-[11px] text-emerald-400 pt-0.5">
-                          ≈ ${formatNumber(amountUsd, 2)} USD
-                        </p>
-                      )}
-                    </div>
-
-                    {phase === "idle" && (
-                      <Button
-                        type="button"
-                        onClick={() => void handleBuild()}
-                        disabled={!canBuild}
-                        className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 w-full sm:w-auto"
-                      >
-                        Review & send
-                      </Button>
-                    )}
-
-                    {phase === "building" && (
-                      <div className="flex items-center gap-2 text-slate-300 text-sm">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Preparing…
-                      </div>
-                    )}
-
-                    {(phase === "awaiting-sign" || phase === "signing" || phase === "ready" || phase === "broadcasting") && (
-                      <div className="space-y-3">
-                        <div className="rounded-md border border-slate-700 bg-slate-900/40 p-3 text-xs space-y-1">
-                          <div className="flex justify-between text-slate-400">
-                            <span>Sending</span>
-                            <span className="text-white tabular-nums">{formatBtcFromSats(amountSats)} BTC</span>
-                          </div>
-                          <div className="flex justify-between text-slate-400">
-                            <span>Miner fee</span>
-                            <span className="text-white tabular-nums">
-                              {feeSats != null ? `${feeSats.toLocaleString()} sats` : "—"}
-                            </span>
-                          </div>
-                          {platformFeeSats > 0 && (
-                            <div className="flex justify-between text-slate-400">
-                              <span>Platform fee</span>
-                              <span className="text-white tabular-nums">
-                                {platformFeeSats.toLocaleString()} sats
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex justify-between text-slate-400">
-                            <span>Inputs</span>
-                            <span className="text-white">{inputCount ?? "—"}</span>
-                          </div>
-                          <div className="flex justify-between text-slate-400">
-                            <span>Signatures needed</span>
-                            <span className="text-white">{signaturesRequired}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {phase !== "ready" && phase !== "broadcasting" && (
-                            <Button
-                              type="button"
-                              onClick={() => void handleSign()}
-                              disabled={phase === "signing"}
-                              className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50"
-                            >
-                              {phase === "signing" ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                  Waiting for wallet…
-                                </>
-                              ) : (
-                                <>
-                                  <FileSignature className="h-4 w-4 mr-1" />
-                                  {kind === "solo" ? "Sign" : "Sign with my wallet"}
-                                </>
-                              )}
-                            </Button>
-                          )}
-                          {(phase === "ready" || phase === "broadcasting") && (
-                            <Button
-                              type="button"
-                              onClick={() => void handleBroadcast()}
-                              disabled={phase === "broadcasting"}
-                              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
-                            >
-                              {phase === "broadcasting" ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                  Sending…
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="h-4 w-4 mr-1" />
-                                  Broadcast now
-                                </>
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={resetFlow}
-                            className="text-slate-400 hover:text-white"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-
-                        {kind === "multisig" && phase === "awaiting-sign" && psbt && (
-                          <div className="space-y-2 pt-2 border-t border-slate-700/60">
-                            <div className="text-xs text-slate-300 font-medium">
-                              Need co-signers? Share this signed request:
-                            </div>
-                            <textarea
-                              value={psbt}
-                              onChange={(e) => handleImportPsbt(e.target.value)}
-                              className="w-full min-h-[5.5rem] rounded-md bg-slate-950 border border-slate-700 p-2 text-[11px] font-mono text-slate-200"
-                              spellCheck={false}
-                            />
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleCopy(psbt, setCopiedPsbt)}
-                                className="border-slate-700 text-slate-200"
-                              >
-                                {copiedPsbt ? (
-                                  <Check className="h-3.5 w-3.5 mr-1 text-emerald-400" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5 mr-1" />
-                                )}
-                                Copy
-                              </Button>
-                            </div>
-                            <p className="text-[11px] text-slate-500">
-                              Each co-signer signs in their wallet, then pastes the updated version back here.
-                              When enough signatures are collected, the Broadcast button becomes available.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {/* Vault send lives on `/btc-vault/:vaultId/send` */}
         </div>
       </div>
-    </div>
+    </WalletLayout>
   );
 };
 

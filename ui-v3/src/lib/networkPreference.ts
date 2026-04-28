@@ -1,3 +1,5 @@
+import { buildScopedStorageKey } from "@/lib/userScope";
+
 /**
  * User-controlled network preference.
  *
@@ -17,13 +19,17 @@ export type NetworkPreference = "mainnet" | "testnet";
 
 export function loadNetworkPreference(): NetworkPreference | null {
   if (typeof localStorage === "undefined") return null;
-  const v = localStorage.getItem(STORAGE_KEY);
+  const scopedKey = buildScopedStorageKey(STORAGE_KEY);
+  const v = localStorage.getItem(scopedKey) ?? (scopedKey === STORAGE_KEY ? null : localStorage.getItem(STORAGE_KEY));
+  if (v != null && scopedKey !== STORAGE_KEY && localStorage.getItem(scopedKey) == null) {
+    localStorage.setItem(scopedKey, v);
+  }
   return v === "mainnet" || v === "testnet" ? v : null;
 }
 
 export function saveNetworkPreference(net: NetworkPreference): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, net);
+  localStorage.setItem(buildScopedStorageKey(STORAGE_KEY), net);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(NETWORK_CHANGED_EVENT, { detail: net }));
   }
@@ -31,7 +37,7 @@ export function saveNetworkPreference(net: NetworkPreference): void {
 
 export function clearNetworkPreference(): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(buildScopedStorageKey(STORAGE_KEY));
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(NETWORK_CHANGED_EVENT, { detail: null }));
   }

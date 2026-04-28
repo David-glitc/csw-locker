@@ -188,6 +188,41 @@ export type MempoolUtxo = {
   status?: { confirmed: boolean; block_height?: number; block_time?: number };
 };
 
+export type OrdinalInscription = {
+  id: string;
+  number?: number;
+  contentType?: string;
+};
+
+/**
+ * Taproot ordinal indexing helper.
+ * Uses Hiro's public ordinals API when available and degrades gracefully to [].
+ */
+export async function getTaprootOrdinalInscriptions(address: string): Promise<OrdinalInscription[]> {
+  try {
+    const res = await fetch(
+      `https://api.hiro.so/ordinals/v1/inscriptions?address=${encodeURIComponent(address)}&limit=20&offset=0`
+    );
+    if (!res.ok) return [];
+    const j = (await res.json()) as {
+      results?: Array<{ id?: string; number?: number; mime_type?: string; content_type?: string }>;
+    };
+    const rows = Array.isArray(j.results) ? j.results : [];
+    return rows
+      .map((row) => {
+        if (!row?.id) return null;
+        return {
+          id: row.id,
+          number: row.number,
+          contentType: row.content_type ?? row.mime_type,
+        } as OrdinalInscription;
+      })
+      .filter((row): row is OrdinalInscription => row !== null);
+  } catch {
+    return [];
+  }
+}
+
 /** Address UTXO set — required to build a spending transaction client-side. */
 export async function getAddressUtxos(address: string): Promise<MempoolUtxo[]> {
   const base = mempoolBaseUrlForAddress(address);

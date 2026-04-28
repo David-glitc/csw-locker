@@ -18,6 +18,7 @@ import { isTaprootBtcAddress } from "@/lib/walletSession";
 import { HeaderAssetBalanceStrip } from "./HeaderAssetBalanceStrip";
 
 interface WalletHeaderProps {
+  mode?: "smart-wallet" | "btc-vault";
   currentWallet: {
     name: string;
     contractId: string;
@@ -30,6 +31,7 @@ interface WalletHeaderProps {
 }
 
 const WalletHeader = ({
+  mode = "smart-wallet",
   currentWallet,
   selectedNetwork,
   onNetworkSwitch,
@@ -100,6 +102,7 @@ const WalletHeader = ({
           </div>
 
           <HeaderAssetBalanceStrip
+            showStxCell={mode !== "btc-vault"}
             stxBalance={currentWallet.balance}
             stxUsd={currentWallet.usdValue}
             stxAddress={stx ?? null}

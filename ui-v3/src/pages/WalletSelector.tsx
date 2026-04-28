@@ -25,7 +25,6 @@ import { BTC_VAULTS_CHANGED_EVENT, loadBtcVaults, type BtcVaultRecord } from "@/
 const WalletSelector = () => {
   const navigate = useNavigate();
   // State management
-  const [isDemoMode, setIsDemo] = useState<boolean>(false);
   const [isPageLoading, setIsPageLoading] = useState<boolean>(true);
   const [walletsToShow, setWalletsToShow] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
   const [importedWallets, setImportedWallets] = useState<(SmartWallet & ContractInfoEntry)[]>([]);
@@ -81,10 +80,10 @@ const WalletSelector = () => {
   };
 
   // Effects
-  useEffect(() => {
-    const demoParam = searchParams.get('demo');
-    setIsDemo(demoParam === 'true');
-  }, [searchParams]);
+  const demoRequested = searchParams.get('demo') === 'true';
+  const realWallets = [...deployedContracts, ...importedWallets];
+  const hasRealSmartWallets = realWallets.some((wallet) => !wallet.ext);
+  const effectiveDemoMode = demoRequested && !hasRealSmartWallets && btcVaults.length === 0;
 
   useEffect(() => {
     if (isWalletConnected && !isOnboardingComplete()) {
@@ -93,10 +92,10 @@ const WalletSelector = () => {
   }, [isWalletConnected, navigate]);
 
   useEffect(() => {
-    if (isDemoMode) {
+    if (effectiveDemoMode) {
       loadDemoData();
     }
-  }, [isDemoMode]);
+  }, [effectiveDemoMode]);
 
   useEffect(() => {
     const sync = () => setBtcVaults(loadBtcVaults());
@@ -112,12 +111,12 @@ const WalletSelector = () => {
 
   // Update wallets to show based on mode
   useEffect(() => {
-    if (isDemoMode) {
+    if (effectiveDemoMode) {
       setWalletsToShow(demoWallets);
     } else {
-      setWalletsToShow([...deployedContracts, ...importedWallets]);
+      setWalletsToShow(realWallets);
     }
-  }, [deployedContracts, importedWallets, demoWallets, isDemoMode]);
+  }, [realWallets, demoWallets, effectiveDemoMode]);
 
   // Event handlers
   const handleWalletAdded = (newWallet: SmartWallet) => {
@@ -150,13 +149,13 @@ const WalletSelector = () => {
   };
 
   // Computed values
-  const totalBalance = isDemoMode
+  const totalBalance = effectiveDemoMode
     ? (demoBalance?.stx?.balance ?? '0.0000')
     : (balanceLoading ? '0.0000' : Number(stxBalance?.balance ?? 0).toFixed(4));
 
   const stxAddr = walletData?.addresses?.stx?.[0]?.address ?? null;
   const stxUsdLabel =
-    isDemoMode
+    effectiveDemoMode
       ? demoBalance?.stx && stxUsd
         ? `$${formatNumber(Number(demoBalance.stx.balance) * stxUsd, 2)}`
         : "—"
@@ -166,7 +165,7 @@ const WalletSelector = () => {
           ? `$${formatNumber(Number(stxBalance.balance) * stxUsd, 2)}`
           : "—";
 
-  const smartNonExtCount = isDemoMode
+  const smartNonExtCount = effectiveDemoMode
     ? demoWallets.filter((w) => !w.ext).length
     : walletsToShow.filter((w) => !w.ext).length;
   const hasAnyWallet = smartNonExtCount > 0 || btcVaults.length > 0;
@@ -189,7 +188,7 @@ const WalletSelector = () => {
             <div className="flex flex-wrap gap-2 sm:gap-3 justify-end">
               <AddExistingWalletDialog
                 onWalletAdded={handleWalletAdded}
-                isDemoMode={isDemoMode}
+                isDemoMode={effectiveDemoMode}
               />
               <PrimaryButton asChild className="bg-amber-600 hover:bg-amber-500 text-white">
                 <Link to="/create-btc-vault">
@@ -207,9 +206,9 @@ const WalletSelector = () => {
 
           </div>
 
-          {isDemoMode && <Notice />}
+          {effectiveDemoMode && <Notice />}
 
-          {deployedContractsLoading && !isDemoMode
+          {deployedContractsLoading && !effectiveDemoMode
             ? (
               <LoadingState />
             )
@@ -224,7 +223,7 @@ const WalletSelector = () => {
                         <WalletCard
                           key={`${wallet.contractId}-${index}`}
                           wallet={wallet}
-                          isDemoMode={isDemoMode}
+                          isDemoMode={effectiveDemoMode}
                         />
                       ))}
                     {btcVaults.map((vault) => (
@@ -233,7 +232,7 @@ const WalletSelector = () => {
                   </div>
 
                   {/* Extension Contracts Section */}
-                  {!isDemoMode && (
+                  {!effectiveDemoMode && (
                     <div className="mt-8">
                       <div className="flex items-center justify-between mb-4">
                         <div>

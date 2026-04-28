@@ -1,7 +1,7 @@
 import { defaultUrlFromNetwork } from '@stacks/network';
 
-function inferNetworkFromAddress(address: string): 'mainnet' | 'testnet' {
-  const a = address.trim();
+function inferNetworkFromAddress(address?: string | null): 'mainnet' | 'testnet' {
+  const a = typeof address === 'string' ? address.trim() : '';
   // Stacks: mainnet P4/SM; testnet ST/SN
   if (a.startsWith('SP') || a.startsWith('SM')) return 'mainnet';
   if (a.startsWith('ST') || a.startsWith('SN')) return 'testnet';
@@ -12,7 +12,7 @@ function inferNetworkFromAddress(address: string): 'mainnet' | 'testnet' {
   return 'testnet';
 }
 
-export function getClientConfig(address: string) {
+export function getClientConfig(address?: string | null) {
   const network = inferNetworkFromAddress(address);
   return {
     network,

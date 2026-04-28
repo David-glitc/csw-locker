@@ -10,6 +10,7 @@ import { useBtcWallet } from "@/contexts/BtcWalletContext";
 import { useAssetPrices } from "@/contexts/AssetPricesContext";
 import PrimaryButton from "../ui/primary-button";
 import { useMemo } from "react";
+import { computePortfolioUsd } from "@/lib/portfolioUsd";
 
 /**
  * One unified row spec covering every fungible asset we render, so the UI is just a
@@ -144,8 +145,15 @@ const AssetOverview = ({ smartWalletAddress }: { smartWalletAddress: string; wal
 	}, [stxRow, sbtcRow, btcRow]);
 
 	const totalUsdValue = useMemo(
-		() => sortedFungibleRows.reduce((acc, r) => acc + (r.usdValue ?? 0), 0),
-		[sortedFungibleRows]
+		() =>
+			computePortfolioUsd({
+				stxBalance: stxRow.balance,
+				sBtcBalance: sbtcRow.balance,
+				btcBalanceSats: balanceSats,
+				stxUsd,
+				btcUsd,
+			}),
+		[stxRow.balance, sbtcRow.balance, balanceSats, stxUsd, btcUsd]
 	);
 	const hasAnyTotal = totalUsdValue > 0;
 	const aggregateLoading = loading || pricesLoading || (!!activeBtcAddress && btcLoading);

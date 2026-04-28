@@ -21,6 +21,7 @@ import { useWalletContext } from "@/contexts/WalletContext";
 import {
   createBtcVaultRecord,
   createSoloBtcVaultRecord,
+  loadBtcVaults,
 } from "@/lib/btcVaultStorage";
 import {
   parsePubkey,
@@ -33,6 +34,10 @@ import { resolveOwnerPubkey } from "@/lib/btcOwnerPubkey";
 import { fetchPubkeyForAddress } from "@/services/btcMempoolService";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAssetPrices } from "@/contexts/AssetPricesContext";
+import { PLATFORM_FEE_CONFIG } from "@/lib/platformFee";
+import { request as stacksRequest } from "@stacks/connect";
+import { getClientConfig } from "@/utils/chain-config";
 
 type VaultKind = "solo" | "multisig";
 
@@ -47,6 +52,14 @@ type Signer = {
 
 const PUBKEY_HEX_RE = /^(02|03)[0-9a-fA-F]{64}$/;
 const ADDRESS_RE = /^([13mn2]|bc1|tb1|bcrt1)[0-9a-zA-HJ-NP-Z]{8,}$/;
+const FREE_VAULT_COUNT = 2;
+const USTX_PER_STX = 1_000_000;
+type PaymentRail = "stacks-stx" | "bitcoin-btc";
+
+function getVaultCreationFeeUsd(kind: VaultKind, threshold: number): number {
+  if (kind === "solo") return 1.2;
+  return Math.min(3, 1.2 + Math.max(0, threshold - 1) * 0.6);
+}
 
 function detectKind(raw: string): "pubkey" | "address" | "unknown" {
   const v = raw.trim();
@@ -61,6 +74,7 @@ const CreateBtcVault = () => {
   const { toast } = useToast();
   const { activeBtcAddress, connectBtcWallet, connecting } = useBtcWallet();
   const { walletData } = useWalletContext();
+  const { stxUsd, btcUsd } = useAssetPrices();
 
   const [step, setStep] = useState(0);
   const [kind, setKind] = useState<VaultKind>("solo");
@@ -70,6 +84,7 @@ const CreateBtcVault = () => {
   const [ownerPubkeyHex, setOwnerPubkeyHex] = useState<string | null>(null);
   const [loadingOwnerPk, setLoadingOwnerPk] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentRail, setPaymentRail] = useState<PaymentRail>("stacks-stx");
   const [vaultId] = useState(() =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -88,7 +103,9 @@ const CreateBtcVault = () => {
     ownerFetchedForRef.current = activeBtcAddress;
     let cancelled = false;
     setLoadingOwnerPk(true);
-    void resolveOwnerPubkey(walletDataRef.current, activeBtcAddress)
+    void resolveOwnerPubkey(walletDataRef.current, activeBtcAddress, {
+      allowWalletRpc: true,
+    })
       .then(({ publicKeyHex }) => {
         if (cancelled) return;
         const lower = publicKeyHex.toLowerCase();
@@ -113,6 +130,10 @@ const CreateBtcVault = () => {
   }, [activeBtcAddress]);
 
   const networkLabel = activeBtcAddress ? networkLabelFromAddress(activeBtcAddress) : null;
+  const soloNonceCommitmentHex = useMemo(
+    () => vaultId.toLowerCase().replace(/[^0-9a-f]/g, "").slice(0, 64),
+    [vaultId]
+  );
 
   // Derived preview (for the Review step)
   const derivedPreview = useMemo(() => {
@@ -121,7 +142,11 @@ const CreateBtcVault = () => {
       const network = btcNetworkFromAddress(activeBtcAddress);
       if (kind === "solo") {
         if (!ownerPubkeyHex) return null;
-        const d = deriveSoloP2wshVault(parsePubkey(ownerPubkeyHex), network);
+        const d = deriveSoloP2wshVault(
+          parsePubkey(ownerPubkeyHex),
+          network,
+          soloNonceCommitmentHex
+        );
         return { address: d.address, signerCount: 1 };
       }
       if (signers.length === 0 || !signers.every((s) => s.status === "resolved" && s.pubkey)) return null;
@@ -132,7 +157,7 @@ const CreateBtcVault = () => {
     } catch {
       return null;
     }
-  }, [kind, signers, threshold, activeBtcAddress, ownerPubkeyHex]);
+  }, [kind, signers, threshold, activeBtcAddress, ownerPubkeyHex, soloNonceCommitmentHex]);
 
   const addSigner = () =>
     setSigners((prev) => [...prev, { identifier: "", pubkey: "", label: "", status: "idle" }]);
@@ -194,10 +219,70 @@ const CreateBtcVault = () => {
     (kind === "solo" ? Boolean(ownerPubkeyHex) : multiSignersValid) &&
     Boolean(derivedPreview);
 
+  const existingVaultCount = useMemo(() => loadBtcVaults().length, []);
+  const needsPaidTier = existingVaultCount >= FREE_VAULT_COUNT;
+  const creationFeeUsd = useMemo(
+    () => (needsPaidTier ? getVaultCreationFeeUsd(kind, threshold) : 0),
+    [needsPaidTier, kind, threshold]
+  );
+  const treasuryStx = PLATFORM_FEE_CONFIG.treasuryStx;
+  const treasuryBtc = networkLabel ? PLATFORM_FEE_CONFIG.treasuryBtc[networkLabel] : null;
+  const stxSenderAddress = walletData?.addresses?.stx?.[0]?.address ?? null;
+  const creationFeeStx = stxUsd ? creationFeeUsd / stxUsd : null;
+  const creationFeeUstx = creationFeeStx ? Math.max(1, Math.ceil(creationFeeStx * USTX_PER_STX)) : null;
+  const creationFeeBtc = btcUsd ? creationFeeUsd / btcUsd : null;
+  const creationFeeSats = creationFeeBtc ? Math.max(1, Math.ceil(creationFeeBtc * 1e8)) : null;
+
   const handleFinish = async () => {
     if (!canFinish || !activeBtcAddress) return;
     setSubmitting(true);
     try {
+      if (needsPaidTier) {
+        if (paymentRail === "stacks-stx") {
+          if (!treasuryStx) {
+            throw new Error("Stacks fee treasury is not configured.");
+          }
+          if (!stxSenderAddress) {
+            throw new Error("Connect your STX wallet before paying the vault creation fee.");
+          }
+          if (!creationFeeUstx) {
+            throw new Error("STX price unavailable. Try again in a moment.");
+          }
+          const network = getClientConfig(stxSenderAddress).network;
+          toast({
+            title: "Approve STX fee payment",
+            description: `Pay ${(creationFeeUstx / USTX_PER_STX).toFixed(6)} STX to continue creating this vault.`,
+          });
+          const feeTx = await stacksRequest("stx_transferStx", {
+            recipient: treasuryStx,
+            amount: creationFeeUstx,
+            network,
+            memo: `vault-fee:${kind}:${vaultId.slice(0, 8)}`,
+          });
+          if (!feeTx?.txid) throw new Error("Fee payment did not return a transaction id.");
+        } else {
+          if (!treasuryBtc) {
+            throw new Error("Bitcoin fee treasury is not configured for this network.");
+          }
+          if (!activeBtcAddress) {
+            throw new Error("Connect your Bitcoin wallet before paying the vault creation fee.");
+          }
+          if (!creationFeeSats) {
+            throw new Error("BTC price unavailable. Try again in a moment.");
+          }
+          const network = getClientConfig(activeBtcAddress).network;
+          toast({
+            title: "Approve BTC fee payment",
+            description: `Pay ${(creationFeeSats / 1e8).toFixed(8)} BTC to continue creating this vault.`,
+          });
+          const feeTx = await stacksRequest("sendTransfer", {
+            recipients: [{ address: treasuryBtc, amount: creationFeeSats }],
+            network,
+          });
+          if (!feeTx?.txid) throw new Error("BTC fee payment did not return a transaction id.");
+        }
+      }
+
       if (kind === "solo") {
         if (!ownerPubkeyHex) throw new Error("Wallet public key not ready yet.");
         createSoloBtcVaultRecord({
@@ -206,10 +291,13 @@ const CreateBtcVault = () => {
           linkedBtcAddress: activeBtcAddress,
           ownerPubkeyHex,
           ownerLabel: "You",
+          nonceCommitmentHex: soloNonceCommitmentHex,
         });
         toast({
           title: "Vault ready",
-          description: `"${name.trim()}" — deposit BTC to start using it.`,
+          description: needsPaidTier
+            ? `"${name.trim()}" created after fee payment. Deposit BTC to start using it.`
+            : `"${name.trim()}" — deposit BTC to start using it.`,
         });
       } else {
         createBtcVaultRecord({
@@ -222,10 +310,12 @@ const CreateBtcVault = () => {
         });
         toast({
           title: "Shared vault ready",
-          description: `Needs ${threshold} of ${signers.length} signatures to spend.`,
+          description: needsPaidTier
+            ? `Fee paid. Needs ${threshold} of ${signers.length} signatures to spend.`
+            : `Needs ${threshold} of ${signers.length} signatures to spend.`,
         });
       }
-      navigate(`/btc-vault/${vaultId}`);
+      navigate(`/dashboard/${vaultId}`);
     } catch (e) {
       toast({
         title: "Couldn't create vault",
@@ -529,6 +619,51 @@ const CreateBtcVault = () => {
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   Creating the vault doesn't broadcast anything. You fund it by sending BTC to the deposit address.
                 </p>
+                {needsPaidTier && (
+                  <div className="rounded-md border border-amber-900/40 bg-amber-950/20 p-3 text-xs space-y-1">
+                    <p className="text-amber-100 font-medium">Creation fee required before vault is created</p>
+                    <p className="text-amber-200/90">
+                      Vault #{existingVaultCount + 1}: ${creationFeeUsd.toFixed(2)}{" "}
+                      {creationFeeStx != null ? `(~${creationFeeStx.toFixed(6)} STX)` : "(STX quote loading...)"}
+                    </p>
+                    <div className="pt-1 space-y-1.5">
+                      <Label className="text-amber-100">Pay with</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentRail("stacks-stx")}
+                          className={cn(
+                            "rounded-md border px-2.5 py-2 text-left",
+                            paymentRail === "stacks-stx"
+                              ? "border-amber-500/70 bg-amber-900/30 text-amber-100"
+                              : "border-slate-700 bg-slate-900/50 text-slate-300"
+                          )}
+                        >
+                          <div>Stacks (STX)</div>
+                          <div className="text-[11px] text-amber-200/80">
+                            {creationFeeStx != null ? `${creationFeeStx.toFixed(6)} STX` : "quote loading..."}
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentRail("bitcoin-btc")}
+                          className={cn(
+                            "rounded-md border px-2.5 py-2 text-left",
+                            paymentRail === "bitcoin-btc"
+                              ? "border-amber-500/70 bg-amber-900/30 text-amber-100"
+                              : "border-slate-700 bg-slate-900/50 text-slate-300"
+                          )}
+                        >
+                          <div>Bitcoin (BTC)</div>
+                          <div className="text-[11px] text-amber-200/80">
+                            {creationFeeSats != null ? `${(creationFeeSats / 1e8).toFixed(8)} BTC` : "quote loading..."}
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-amber-200/70">You'll approve this payment first, then the vault is created.</p>
+                  </div>
+                )}
               </div>
             )}
 

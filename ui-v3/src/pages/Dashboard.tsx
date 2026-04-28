@@ -1,7 +1,7 @@
 import WalletLayout from "@/components/WalletLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpRight, TrendingUp, Activity, DollarSign, Settings } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { ArrowUpRight, TrendingUp, Activity, DollarSign, Settings, Bitcoin } from "lucide-react";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import ActiveExtensions from "@/components/dashboard/ActiveExtensions";
 import AssetOverview from "@/components/dashboard/AssetOverview";
@@ -15,11 +15,16 @@ import { useBtcWallet } from "@/contexts/BtcWalletContext";
 import { useEffect, useMemo, useState } from "react";
 import { TransactionDataService } from "@/services/transactionDataService";
 import { Skeleton } from "@/components/ui/skeleton";
+import { loadBtcLocks, BTC_LOCKS_CHANGED_EVENT } from "@/lib/btcLockStorage";
+import { getBtcVault } from "@/lib/btcVaultStorage";
+import BtcVaultView from "@/pages/BtcVaultView";
+import { computePortfolioUsd } from "@/lib/portfolioUsd";
 
 const service = new TransactionDataService();
 
 const Dashboard = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>()
+  const vaultFromRoute = walletId ? getBtcVault(walletId) : null;
   const { selectedWallet: walletData, isLoading } = useSelectedWallet();
   const { stxBalance, sBtcBalance, loading } = useAccountBalanceService(walletId)
   const { extensions } = useSmartWalletContractService(walletId?.split('.')[0])
@@ -28,36 +33,53 @@ const Dashboard = () => {
   const { activeBtcAddress, balanceSats, loadingBalance: btcLoading } = useBtcWallet();
 
   const [txCount, setTxCount] = useState<number | null>(null);
+  const [lockedBtcSats, setLockedBtcSats] = useState<number>(0);
 
   useEffect(() => {
     if (!walletId) return;
     service.getTransactionCount(walletId).then(setTxCount);
   }, [walletId]);
 
+  useEffect(() => {
+    const recalc = () => {
+      const locks = loadBtcLocks().filter((l) => l.status !== "spent" && Boolean(l.txid));
+      setLockedBtcSats(locks.reduce((acc, l) => acc + (l.amountSats ?? 0), 0));
+    };
+    recalc();
+    window.addEventListener(BTC_LOCKS_CHANGED_EVENT, recalc);
+    window.addEventListener("storage", recalc);
+    return () => {
+      window.removeEventListener(BTC_LOCKS_CHANGED_EVENT, recalc);
+      window.removeEventListener("storage", recalc);
+    };
+  }, []);
+
   // Aggregate USD value across STX + sBTC + native BTC. Each component is added only
   // when both the balance and the spot price are known — partial sums avoid the
   // "tiny number flickering up to the real total" effect during initial load.
   const totalUsdValue = useMemo(() => {
-    let total = 0;
-    if (stxBalance?.balance && stxUsd != null) total += Number(stxBalance.balance) * stxUsd;
-    if (sBtcBalance?.balance && btcUsd != null) total += Number(sBtcBalance.balance) * btcUsd;
-    if (balanceSats != null && btcUsd != null) total += (balanceSats / 1e8) * btcUsd;
-    return total;
-  }, [stxBalance, sBtcBalance, balanceSats, stxUsd, btcUsd]);
+    return computePortfolioUsd({
+      stxBalance: stxBalance?.balance ? Number(stxBalance.balance) : null,
+      sBtcBalance: sBtcBalance?.balance ? Number(sBtcBalance.balance) : null,
+      btcBalanceSats: balanceSats,
+      lockedBtcSats,
+      stxUsd,
+      btcUsd,
+    });
+  }, [stxBalance?.balance, sBtcBalance?.balance, balanceSats, lockedBtcSats, stxUsd, btcUsd]);
 
-  const balanceSummary = useMemo(() => {
+  const smartWalletSummary = useMemo(() => {
     const parts: string[] = [];
     if (stxBalance?.balance) parts.push(`${formatNumber(Number(stxBalance.balance), 2)} STX`);
     if (sBtcBalance?.balance && Number(sBtcBalance.balance) > 0) {
       parts.push(`${formatNumber(Number(sBtcBalance.balance), 4)} sBTC`);
     }
-    if (activeBtcAddress && balanceSats != null && balanceSats > 0) {
-      parts.push(`${formatBtcFromSats(balanceSats)} BTC`);
-    }
     return parts.length ? parts.join(" · ") : "0.00 STX";
-  }, [stxBalance, sBtcBalance, balanceSats, activeBtcAddress]);
+  }, [stxBalance, sBtcBalance]);
 
   const aggregateLoading = loading || pricesLoading || (!!activeBtcAddress && btcLoading);
+
+  if (vaultFromRoute) return <BtcVaultView />;
 
   if (!isLoading && !walletData) {
     return (
@@ -84,10 +106,10 @@ const Dashboard = () => {
         </div>
 
         {/* Balance Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-400">Holdings</CardTitle>
+              <CardTitle className="text-sm font-medium text-slate-400">Smart wallet</CardTitle>
               <DollarSign className="h-4 w-4 text-slate-400" />
             </CardHeader>
             <CardContent>
@@ -95,11 +117,34 @@ const Dashboard = () => {
                 {loading ? (
                   <Skeleton className="h-7 w-32" />
                 ) : (
-                  <p title={balanceSummary}>{balanceSummary}</p>
+                  <p title={smartWalletSummary}>{smartWalletSummary}</p>
                 )}
               </div>
               <p className="text-xs text-slate-400 truncate">
                 {walletId ? `${walletId.slice(0, 4)}...${walletId.slice(walletId.length - 15, walletId.length)}` : ''}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-400">BTC wallet</CardTitle>
+              <Bitcoin className="h-4 w-4 text-amber-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold text-amber-300 truncate">
+                {activeBtcAddress ? (
+                  btcLoading && balanceSats == null ? (
+                    <Skeleton className="h-7 w-28" />
+                  ) : (
+                    `${formatBtcFromSats(balanceSats ?? 0)} BTC`
+                  )
+                ) : (
+                  "Not connected"
+                )}
+              </div>
+              <p className="text-xs text-slate-400 truncate">
+                {activeBtcAddress ? `${activeBtcAddress.slice(0, 6)}...${activeBtcAddress.slice(-8)}` : "Connect Bitcoin wallet"}
               </p>
             </CardContent>
           </Card>
@@ -119,9 +164,7 @@ const Dashboard = () => {
                   <p>$0.00</p>
                 )}
               </div>
-              <p className="text-xs text-slate-400">
-                STX + sBTC + BTC L1
-              </p>
+              <p className="text-xs text-slate-400">Portfolio value</p>
             </CardContent>
           </Card>
 
@@ -135,6 +178,22 @@ const Dashboard = () => {
                 {txCount !== null ? txCount : <Skeleton className="h-8 w-8" />}
               </div>
               <p className="text-xs text-slate-400">Total transactions</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-slate-400">Locked BTC</CardTitle>
+              <Bitcoin className="h-4 w-4 text-amber-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="font-semibold text-amber-300 leading-tight">
+                <span className="font-mono text-sm sm:text-lg md:text-xl break-all">
+                  {formatBtcFromSats(lockedBtcSats)}
+                </span>{" "}
+                <span className="text-[10px] sm:text-xs font-bold text-amber-200/80">BTC</span>
+              </div>
+              <p className="text-xs text-slate-400">Total active BTC locks</p>
             </CardContent>
           </Card>
         </div>

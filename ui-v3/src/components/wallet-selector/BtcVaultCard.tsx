@@ -1,9 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bitcoin, CopyIcon, Eye, User, Users } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BtcVaultRecord, getVaultKind, vaultIsOnChain } from "@/lib/btcVaultStorage";
+import { getAddressBalanceSats } from "@/services/btcMempoolService";
+import { formatBtcFromSats } from "@/utils/numbers";
 
 type BtcVaultCardProps = {
   vault: BtcVaultRecord;
@@ -11,6 +13,7 @@ type BtcVaultCardProps = {
 
 const BtcVaultCard = ({ vault }: BtcVaultCardProps) => {
   const [copied, setCopied] = useState(false);
+  const [balanceSats, setBalanceSats] = useState<number | null>(null);
   const navigate = useNavigate();
   const onChain = vaultIsOnChain(vault);
   const kind = getVaultKind(vault);
@@ -22,6 +25,17 @@ const BtcVaultCard = ({ vault }: BtcVaultCardProps) => {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const balance = await getAddressBalanceSats(vault.derivedVaultAddress);
+      if (!cancelled) setBalanceSats(balance);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vault.id, vault.derivedVaultAddress]);
 
   return (
     <Card className="bg-slate-800/50 border-amber-900/40 hover:border-amber-600/40 transition-colors">
@@ -75,6 +89,13 @@ const BtcVaultCard = ({ vault }: BtcVaultCardProps) => {
         </div>
 
         <div>
+          <div className="text-slate-400 text-sm">Balance</div>
+          <div className="text-white text-sm">
+            {balanceSats == null ? "Loading…" : `${formatBtcFromSats(balanceSats)} BTC`}
+          </div>
+        </div>
+
+        <div>
           <div className="text-slate-400 text-sm">Created</div>
           <div className="text-white text-sm">{vault.createdAt.slice(0, 10)}</div>
         </div>
@@ -83,7 +104,7 @@ const BtcVaultCard = ({ vault }: BtcVaultCardProps) => {
           type="button"
           className="w-full"
           variant="secondary"
-          onClick={() => navigate(`/btc-vault/${vault.id}`)}
+          onClick={() => navigate(`/dashboard/${vault.id}`)}
         >
           <Eye className="h-4 w-4 mr-2" />
           View vault

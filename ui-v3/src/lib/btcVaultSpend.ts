@@ -54,6 +54,18 @@ export type BuildVaultSpendResult = {
   signerCount: number;
 };
 
+export type BuildVaultShutdownResult = {
+  psbtBase64: string;
+  sweepAmountSats: number;
+  feeSats: number;
+  platformFeeSats: number;
+  platformFeeTreasury: string | null;
+  inputCount: number;
+  network: "mainnet" | "testnet";
+  signaturesRequired: number;
+  signerCount: number;
+};
+
 export async function buildVaultSpendPsbt(args: BuildVaultSpendArgs): Promise<BuildVaultSpendResult> {
   const { vault, recipientAddress, amountSats } = args;
   if (!vault.witnessScriptHex || !vault.scriptPubkeyHex) {
@@ -81,10 +93,12 @@ export async function buildVaultSpendPsbt(args: BuildVaultSpendArgs): Promise<Bu
     throw new Error("This vault has no BTC in it yet.");
   }
 
-  const feerate = fees ? pickFeerateSatPerVb(fees, args.feePreset ?? "halfHour") : 5;
+  const feerate = Math.max(5, fees ? pickFeerateSatPerVb(fees, args.feePreset ?? "halfHour") : 5);
 
   const platformQuote = computeBtcPlatformFee(amountSats, networkLabel);
-  const platformFeeSats = platformQuote.enabled ? platformQuote.feeSats : 0;
+  const platformFeeSatsRaw = platformQuote.enabled ? platformQuote.feeSats : 0;
+  // Avoid producing non-standard dust outputs to treasury.
+  const platformFeeSats = platformFeeSatsRaw >= P2WPKH_DUST_SATS ? platformFeeSatsRaw : 0;
 
   const perInputVsize =
     kind === "solo" ? SOLO_INPUT_VSIZE : MULTISIG_INPUT_VSIZE_BASE + MULTISIG_INPUT_VSIZE_PER_SIG * threshold;
@@ -143,9 +157,91 @@ export async function buildVaultSpendPsbt(args: BuildVaultSpendArgs): Promise<Bu
     amountSats,
     feeSats,
     platformFeeSats,
-    platformFeeTreasury: platformQuote.enabled ? platformQuote.treasury : null,
+    platformFeeTreasury: platformFeeSats > 0 ? platformQuote.treasury : null,
     changeSats: effectiveChange,
     inputCount: picked.length,
+    network: networkLabel,
+    signaturesRequired: kind === "solo" ? 1 : threshold,
+    signerCount,
+  };
+}
+
+/**
+ * Build a "shutdown" PSBT:
+ * - spend all vault UTXOs
+ * - send the full remaining balance (minus fees and optional platform fee)
+ *   to `recipientAddress` (typically the owner wallet)
+ * - no change output is created
+ */
+export async function buildVaultShutdownPsbt(args: {
+  vault: BtcVaultRecord;
+  recipientAddress: string;
+  feePreset?: "fastest" | "halfHour" | "hour" | "economy";
+}): Promise<BuildVaultShutdownResult> {
+  const { vault, recipientAddress } = args;
+  if (!vault.witnessScriptHex || !vault.scriptPubkeyHex) {
+    throw new Error("This vault isn't spendable on-chain. Delete and re-create it.");
+  }
+  if (!recipientAddress.trim()) throw new Error("Missing shutdown recipient address.");
+
+  const kind = getVaultKind(vault);
+  const threshold = Math.max(1, parseInt(vault.threshold || "1", 10) || 1);
+  const signerCount = vault.signerPubkeys?.length ?? 1;
+  const network = btcNetworkFromAddress(vault.linkedBtcAddress);
+  const networkLabel = networkLabelFromAddress(vault.linkedBtcAddress);
+
+  const [utxos, fees] = await Promise.all([
+    getAddressUtxos(vault.derivedVaultAddress),
+    getRecommendedFeerates(vault.linkedBtcAddress),
+  ]);
+  if (utxos.length === 0) throw new Error("This vault has no BTC in it yet.");
+  const inSum = utxos.reduce((acc, u) => acc + u.value, 0);
+
+  const feerate = Math.max(5, fees ? pickFeerateSatPerVb(fees, args.feePreset ?? "halfHour") : 5);
+  const platformQuote = computeBtcPlatformFee(inSum, networkLabel, {
+    enforceMinFloor: false,
+  });
+  const platformFeeSatsRaw = platformQuote.enabled ? platformQuote.feeSats : 0;
+  // Avoid producing non-standard dust outputs to treasury.
+  const platformFeeSats = platformFeeSatsRaw >= P2WPKH_DUST_SATS ? platformFeeSatsRaw : 0;
+
+  const perInputVsize =
+    kind === "solo" ? SOLO_INPUT_VSIZE : MULTISIG_INPUT_VSIZE_BASE + MULTISIG_INPUT_VSIZE_PER_SIG * threshold;
+  const outputCount = 1 + (platformFeeSats > 0 ? 1 : 0);
+  const vsize = TX_BASE_VSIZE + utxos.length * perInputVsize + outputCount * PER_OUTPUT_VSIZE;
+  const feeSats = Math.max(200, Math.ceil(feerate * vsize));
+  const sweepAmountSats = inSum - feeSats - platformFeeSats;
+  if (sweepAmountSats < P2WPKH_DUST_SATS) {
+    throw new Error(
+      `Vault balance is too small after fees (${sweepAmountSats} sats). Wait for lower fees or top up first.`
+    );
+  }
+
+  const witnessScript = hex.decode(vault.witnessScriptHex);
+  const scriptPubkey = hex.decode(vault.scriptPubkeyHex);
+
+  const tx = new Transaction({ version: 2, allowUnknownInputs: true });
+  for (const u of utxos) {
+    tx.addInput({
+      txid: u.txid,
+      index: u.vout,
+      witnessUtxo: { script: scriptPubkey, amount: BigInt(u.value) },
+      witnessScript,
+      sequence: 0xfffffffd,
+    });
+  }
+  tx.addOutputAddress(recipientAddress.trim(), BigInt(sweepAmountSats), network);
+  if (platformFeeSats > 0 && platformQuote.treasury) {
+    tx.addOutputAddress(platformQuote.treasury, BigInt(platformFeeSats), network);
+  }
+
+  return {
+    psbtBase64: base64.encode(tx.toPSBT()),
+    sweepAmountSats,
+    feeSats,
+    platformFeeSats,
+    platformFeeTreasury: platformFeeSats > 0 ? platformQuote.treasury : null,
+    inputCount: utxos.length,
     network: networkLabel,
     signaturesRequired: kind === "solo" ? 1 : threshold,
     signerCount,

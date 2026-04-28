@@ -7,6 +7,7 @@ const cellBase =
   "rounded-lg border bg-slate-800/40 px-3 py-1.5 min-w-[9.5rem] sm:min-w-[11rem] max-w-[14rem] flex-1";
 
 type StripProps = {
+  showStxCell?: boolean;
   stxBalance: string;
   stxUsd: string;
   stxAddress: string | null;
@@ -26,6 +27,7 @@ type StripProps = {
 };
 
 export function HeaderAssetBalanceStrip({
+  showStxCell = true,
   stxBalance,
   stxUsd,
   stxAddress,
@@ -45,6 +47,7 @@ export function HeaderAssetBalanceStrip({
 }: StripProps) {
   return (
     <div className="flex flex-1 min-w-0 items-center justify-end gap-2 sm:gap-2.5">
+      {showStxCell && (
       <div className={`${cellBase} border-slate-700/80`}>
         <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 leading-none">STX</div>
         <div className="mt-0.5 flex items-end justify-between gap-2 min-w-0">
@@ -70,6 +73,7 @@ export function HeaderAssetBalanceStrip({
           </div>
         )}
       </div>
+      )}
 
       <div className={`${cellBase} border-amber-900/35`}>
         <div className="flex items-center justify-between gap-2">

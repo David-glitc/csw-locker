@@ -1,6 +1,7 @@
 import { deriveCltvP2wshLock, btcNetworkFromAddress, parsePubkey } from "@/lib/btcScript";
 
 const STORAGE_KEY = "csw_btc_locks_v1";
+const USER_SCOPE_KEY = "csw_user_scope_key";
 
 export const BTC_LOCKS_CHANGED_EVENT = "csw-btc-locks-changed";
 
@@ -15,6 +16,8 @@ export type BtcLockStatus = "pending" | "broadcast" | "confirmed" | "unlockable"
  */
 export type BtcLockRecord = {
   id: string;
+  /** Optional vault id when this lock was funded from a vault. */
+  sourceVaultId?: string;
   ownerBtcAddress: string;
   /** 33-byte compressed secp256k1 pubkey (hex) used in the CLTV script. */
   ownerPubkey?: string;
@@ -41,6 +44,10 @@ export type BtcLockRecord = {
   note?: string;
   /** Set once the lock has been swept/spent (after unlock). */
   spendTxid?: string;
+  /** Number of full unlock-time recovery passes attempted for unknown-time rows. */
+  unknownUnlockResolveAttempts?: number;
+  /** True when exhaustive recovery attempts concluded this is not a CSW lock script. */
+  unknownUnlockUnrecoverable?: boolean;
 };
 
 function parseList(raw: string | null): BtcLockRecord[] {
@@ -59,6 +66,7 @@ function isBtcLockRecord(x: unknown): x is BtcLockRecord {
   const r = x as Record<string, unknown>;
   return (
     typeof r.id === "string" &&
+    (r.sourceVaultId === undefined || typeof r.sourceVaultId === "string") &&
     typeof r.ownerBtcAddress === "string" &&
     typeof r.lockAddress === "string" &&
     (r.ownerPubkey === undefined || typeof r.ownerPubkey === "string") &&
@@ -71,6 +79,8 @@ function isBtcLockRecord(x: unknown): x is BtcLockRecord {
     (r.txid === null || typeof r.txid === "string") &&
     (r.vout === undefined || typeof r.vout === "number") &&
     (r.fundedAtUnixSec === undefined || typeof r.fundedAtUnixSec === "number") &&
+    (r.unknownUnlockResolveAttempts === undefined || typeof r.unknownUnlockResolveAttempts === "number") &&
+    (r.unknownUnlockUnrecoverable === undefined || typeof r.unknownUnlockUnrecoverable === "boolean") &&
     typeof r.status === "string" &&
     (r.spendTxid === undefined || typeof r.spendTxid === "string")
   );
@@ -78,11 +88,33 @@ function isBtcLockRecord(x: unknown): x is BtcLockRecord {
 
 export function loadBtcLocks(): BtcLockRecord[] {
   if (typeof localStorage === "undefined") return [];
+  const scopedKey = getScopedStorageKey();
+  if (scopedKey) {
+    const scopedRaw = localStorage.getItem(scopedKey);
+    if (scopedRaw != null) {
+      return parseList(scopedRaw);
+    }
+    const legacy = parseList(localStorage.getItem(STORAGE_KEY));
+    if (legacy.length > 0) {
+      localStorage.setItem(scopedKey, JSON.stringify(legacy));
+      return legacy;
+    }
+    localStorage.setItem(scopedKey, "[]");
+    return [];
+  }
   return parseList(localStorage.getItem(STORAGE_KEY));
 }
 
 function saveAll(locks: BtcLockRecord[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(locks));
+  const scopedKey = getScopedStorageKey();
+  localStorage.setItem(scopedKey ?? STORAGE_KEY, JSON.stringify(locks));
+}
+
+function getScopedStorageKey(): string | null {
+  if (typeof localStorage === "undefined") return null;
+  const scope = localStorage.getItem(USER_SCOPE_KEY)?.trim().toLowerCase();
+  if (!scope) return null;
+  return `${STORAGE_KEY}::${scope}`;
 }
 
 export function notifyBtcLocksChanged() {
@@ -93,6 +125,7 @@ export function notifyBtcLocksChanged() {
 
 export type CreateBtcLockInput = {
   id: string;
+  sourceVaultId?: string;
   ownerBtcAddress: string;
   /** Compressed secp256k1 pubkey (hex) from `getAddresses`. Required to enforce the lock on-chain. */
   ownerPubkeyHex: string;
@@ -108,6 +141,7 @@ export function createBtcLockRecord(input: CreateBtcLockInput): BtcLockRecord {
   const derived = deriveCltvP2wshLock(ownerPubkey, input.unlockUnixSec, network);
   const record: BtcLockRecord = {
     id: input.id,
+    sourceVaultId: input.sourceVaultId,
     ownerBtcAddress: input.ownerBtcAddress,
     ownerPubkey: input.ownerPubkeyHex.toLowerCase().replace(/^0x/, ""),
     lockAddress: derived.address,
@@ -120,6 +154,8 @@ export function createBtcLockRecord(input: CreateBtcLockInput): BtcLockRecord {
     txid: null,
     status: "pending",
     note: input.note,
+    unknownUnlockResolveAttempts: 0,
+    unknownUnlockUnrecoverable: false,
   };
   const next = [...loadBtcLocks(), record];
   saveAll(next);

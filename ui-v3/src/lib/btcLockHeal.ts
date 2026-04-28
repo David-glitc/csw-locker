@@ -86,7 +86,9 @@ async function findOwnerPubkeyHex(
   //    reach here, otherwise opening the page spams a popup per legacy lock.
   if (opts.allowWalletPrompt) {
     try {
-      const via = await resolveOwnerPubkey(session, lock.ownerBtcAddress);
+      const via = await resolveOwnerPubkey(session, lock.ownerBtcAddress, {
+        allowWalletRpc: true,
+      });
       if (via.publicKeyHex) {
         return via.publicKeyHex.toLowerCase().replace(/^0x/, "");
       }

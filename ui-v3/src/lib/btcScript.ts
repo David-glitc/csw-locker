@@ -115,13 +115,34 @@ export type SoloVaultDerivation = {
   witnessScriptHex: string;
   scriptPubkeyHex: string;
   ownerPubkeyHex: string;
+  nonceCommitmentHex?: string;
 };
 
 export function deriveSoloP2wshVault(
   ownerPubkey: Uint8Array,
-  network: BTC_NETWORK
+  network: BTC_NETWORK,
+  nonceCommitmentHex?: string,
+  unlockUnixSec?: number
 ): SoloVaultDerivation {
-  const witnessScript = Script.encode([ownerPubkey, "CHECKSIG"]);
+  const cleanedNonce = nonceCommitmentHex?.toLowerCase().replace(/^0x/, "");
+  const nonceBytes =
+    cleanedNonce && /^[0-9a-f]{16,64}$/.test(cleanedNonce)
+      ? hex.decode(cleanedNonce)
+      : null;
+  // When nonce is provided, commit it in script so each vault can derive a unique
+  // address even for the same owner key: `<nonce> DROP <pubkey> CHECKSIG`.
+  const scriptParts: Array<Uint8Array | string> = [];
+  if (unlockUnixSec != null) {
+    if (!Number.isFinite(unlockUnixSec) || unlockUnixSec <= CLTV_TIMESTAMP_THRESHOLD) {
+      throw new Error("Unlock time must be a Unix timestamp (seconds) in the future.");
+    }
+    scriptParts.push(ScriptNum().encode(BigInt(unlockUnixSec)), "CHECKLOCKTIMEVERIFY", "DROP");
+  }
+  if (nonceBytes) {
+    scriptParts.push(nonceBytes, "DROP");
+  }
+  scriptParts.push(ownerPubkey, "CHECKSIG");
+  const witnessScript = Script.encode(scriptParts);
   const wsh = p2wsh({ type: "unknown", script: witnessScript } as Parameters<typeof p2wsh>[0], network);
   if (!wsh.address) {
     throw new Error("Failed to derive vault address.");
@@ -131,6 +152,7 @@ export function deriveSoloP2wshVault(
     witnessScriptHex: hex.encode(witnessScript),
     scriptPubkeyHex: hex.encode(wsh.script),
     ownerPubkeyHex: hex.encode(ownerPubkey),
+    nonceCommitmentHex: cleanedNonce ?? undefined,
   };
 }
 

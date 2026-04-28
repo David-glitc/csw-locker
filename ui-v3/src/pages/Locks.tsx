@@ -15,6 +15,7 @@ import {
   Lock,
   Bitcoin,
   Layers,
+  AlertTriangle,
   ExternalLink,
   Copy,
   Check,
@@ -40,9 +41,15 @@ import {
 } from "@/lib/btcLockStorage";
 import { resolveOwnerPubkey } from "@/lib/btcOwnerPubkey";
 import { tryHealLock } from "@/lib/btcLockHeal";
-import { recoverAndPersistLocks, resolveUnknownUnlockTimes } from "@/lib/btcLockRecovery";
+import {
+  recoverAndPersistLocks,
+  resolveUnknownUnlockTimes,
+  resolveUnknownUnlockTimeForLock,
+} from "@/lib/btcLockRecovery";
 import { buildUnlockPsbt } from "@/lib/btcLockSpend";
+import { buildVaultSpendPsbt } from "@/lib/btcVaultSpend";
 import { finalizeCltvSpendPsbt } from "@/lib/btcLockFinalize";
+import { getVaultFromRouteId } from "@/lib/vaultRoute";
 import { request as stacksRequest, JsonRpcError, JsonRpcErrorCode } from "@stacks/connect";
 import {
   getRecommendedFeerates,
@@ -62,6 +69,8 @@ import { networkLabelFromAddress } from "@/lib/btcScript";
 import { getClientConfig } from "@/utils/chain-config";
 import { useToast } from "@/hooks/use-toast";
 import { formatBtcFromSats, formatNumber } from "@/utils/numbers";
+import { base64 } from "@scure/base";
+import { Transaction } from "@scure/btc-signer";
 
 const SATS_PER_BTC = 1e8;
 /** Safe floor — Bitcoin Core dust is 546 sats for P2PKH, 294 for P2WPKH, 330 for P2TR. Use the highest for friendliness. */
@@ -113,6 +122,16 @@ function satsToBtcString(sats: number): string {
   if (sats <= 0) return "";
   const s = (sats / SATS_PER_BTC).toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
   return s;
+}
+
+function tryFinalizeHex(psbtBase64: string): string | null {
+  try {
+    const tx = Transaction.fromPSBT(base64.decode(psbtBase64));
+    tx.finalize();
+    return tx.hex;
+  } catch {
+    return null;
+  }
 }
 
 const PERCENT_CHIPS = [10, 25, 50, 75, 100] as const;
@@ -182,9 +201,19 @@ function chipFor(lock: BtcLockRecord, now: number): LockStatusChip {
   const unlockTimeKnown =
     Number.isFinite(lock.unlockUnixSec) && lock.unlockUnixSec > 500_000_000;
   const windowOpen = unlockTimeKnown && lock.unlockUnixSec * 1000 <= now;
+  const unrecoverableUnknown =
+    !unlockTimeKnown &&
+    Boolean(lock.unknownUnlockUnrecoverable || lock.note?.toLowerCase().includes("not a csw lock script"));
   // Window-open is derived purely from wall-clock so the UI never lies regardless
   // of what the persisted status field happens to be. Covers `unlockable`, stale
   // `confirmed`, and even `broadcast` rows whose unlock date has already passed.
+  if (unrecoverableUnknown && lock.txid) {
+    return {
+      label: "Not a CSW lock script",
+      icon: <AlertTriangle className="h-3 w-3" />,
+      className: "bg-rose-700/20 text-rose-200 border-rose-700/50",
+    };
+  }
   if (!unlockTimeKnown && lock.txid) {
     return {
       label: "Recovering unlock time…",
@@ -248,6 +277,9 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
   // `unlockUnixSec = 0` as a sentinel. Treat this as "unknown" rather than
   // 1970-01-01 so the UI doesn't lie to the user.
   const unlockTimeUnknown = !Number.isFinite(lock.unlockUnixSec) || lock.unlockUnixSec <= 0;
+  const unlockUnknownUnrecoverable =
+    unlockTimeUnknown &&
+    Boolean(lock.unknownUnlockUnrecoverable || lock.note?.toLowerCase().includes("not a csw lock script"));
   const unlockMs = lock.unlockUnixSec * 1000;
   // Prefer the on-chain first-confirmation time (authoritative) — fall back to local `createdAt`
   // only while the tx is still in the mempool or never funded.
@@ -274,11 +306,13 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
   const missingScriptFields = !onChain;
   const notYetFunded = !lock.txid;
   const alreadySpent = lock.status === "spent";
+  const canAttemptRecover =
+    unlockTimeUnknown && !unlockUnknownUnrecoverable && !notYetFunded && !alreadySpent;
   // If script fields are missing but we have a funding txid, we can still try to
   // recover the script on click (`tryHealLock`). Only block the click when the lock
   // was never funded on-chain.
-  const canUnlock = !notYetFunded && !alreadySpent && windowOpen;
-  const showUnlockControl = windowOpen && !alreadySpent;
+  const canUnlock = !notYetFunded && !alreadySpent && (windowOpen || canAttemptRecover);
+  const showUnlockControl = (windowOpen || canAttemptRecover) && !alreadySpent;
   const disabledReason = notYetFunded
     ? "Funding tx not seen on-chain yet. Wait for the first confirmation."
     : null;
@@ -323,11 +357,21 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
       className="rounded-lg border border-slate-700 bg-slate-900/40 p-4 space-y-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-white font-semibold text-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-white font-semibold text-xs sm:text-sm">
           <Bitcoin className="h-4 w-4 text-amber-400" />
-          <span className="tabular-nums">{formatBtcFromSats(lock.amountSats)}</span>
+          <span className="tabular-nums break-all">{formatBtcFromSats(lock.amountSats)}</span>
           <span className="text-[10px] text-amber-200/80 font-bold">BTC</span>
-          {usd && <span className="text-xs text-slate-400 font-normal ml-1">{usd}</span>}
+          <span
+            className={cn(
+              "inline-flex items-center text-[10px] px-1.5 py-0.5 rounded border font-semibold",
+              lock.sourceVaultId
+                ? "text-purple-200 border-purple-700/60 bg-purple-900/30"
+                : "text-slate-300 border-slate-700 bg-slate-800/70"
+            )}
+          >
+            {lock.sourceVaultId ? "Vault" : "Wallet"}
+          </span>
+          {usd && <span className="text-[10px] sm:text-xs text-slate-400 font-normal ml-1">{usd}</span>}
         </div>
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${chip.className}`}>
@@ -348,9 +392,13 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
           <div className="text-slate-400 uppercase tracking-wide text-[10px] font-semibold mb-1">Unlocks</div>
           {unlockTimeUnknown ? (
             <>
-              <div className="text-amber-200">Unknown — recovering…</div>
+              <div className={unlockUnknownUnrecoverable ? "text-rose-200" : "text-amber-200"}>
+                {unlockUnknownUnrecoverable ? "Not a CSW lock script" : "Unknown — recovering…"}
+              </div>
               <div className="text-slate-500 text-[11px]">
-                We're scanning the chain to find this lock's unlock time.
+                {unlockUnknownUnrecoverable
+                  ? "This funded output does not match a CSW lock witness script."
+                  : "We're scanning the chain to find this lock's unlock time."}
               </div>
             </>
           ) : (
@@ -391,6 +439,11 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
           On-chain script not cached locally — we'll re-derive it from your wallet on click.
         </div>
       )}
+      {unlockUnknownUnrecoverable && (
+        <div className="rounded-md border border-rose-900/40 bg-rose-950/20 p-2 text-[11px] text-rose-200/90">
+          Exhaustive recovery attempts did not map this output to a CSW lock script. You can keep it in history, but it won't unlock through the CSW lock flow.
+        </div>
+      )}
 
       <div className="flex justify-end gap-2">
         {showUnlockControl && (
@@ -400,7 +453,14 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
             className="bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-emerald-900/40 disabled:text-emerald-200/50"
             disabled={unlocking || !canUnlock}
             onClick={() => void onUnlock(lock)}
-            title={disabledReason ?? (needsHeal ? "Recover script and sweep" : "Sweep locked BTC back to your wallet")}
+            title={
+              disabledReason ??
+              (unlockTimeUnknown
+                ? "Recover unlock time and sweep"
+                : needsHeal
+                  ? "Recover script and sweep"
+                  : "Sweep locked BTC back to your wallet")
+            }
           >
             {unlocking ? (
               <>
@@ -410,7 +470,11 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
             ) : (
               <>
                 <Unlock className="h-3.5 w-3.5 mr-1" />
-                {needsHeal ? "Recover & sweep" : "Unlock & sweep"}
+                {unlockTimeUnknown
+                  ? "Recover time & unlock"
+                  : needsHeal
+                    ? "Recover & sweep"
+                    : "Unlock & sweep"}
               </>
             )}
           </Button>
@@ -475,7 +539,9 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
           </div>
           {!onChain && (
             <div className="text-[10px] text-amber-300/80 mt-1">
-              Older preview lock. Remove and re-create to get real on-chain enforcement.
+              {unlockTimeUnknown
+                ? "Recovered from chain. Use \"Recover time & unlock\" to finalize this lock."
+                : "Older preview lock. Remove and re-create to get real on-chain enforcement."}
             </div>
           )}
         </div>
@@ -556,11 +622,15 @@ function LockRow({ lock, now, onCopied, btcUsd, onUnlock, unlocking, onChainStat
 
 const Locks = () => {
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
+  const vaultFromRoute = getVaultFromRouteId(walletId);
+  const isVaultMode = vaultFromRoute != null;
   const { activeBtcAddress, connectBtcWallet, connecting, refreshBtc, balanceSats, loadingBalance } = useBtcWallet();
   const { btcUsd } = useAssetPrices();
   const { walletData } = useWalletContext();
   const { toast } = useToast();
   const [unlockingId, setUnlockingId] = useState<string | null>(null);
+  const [vaultBalanceSats, setVaultBalanceSats] = useState<number | null>(null);
+  const [vaultFunding, setVaultFunding] = useState(false);
 
   const [locks, setLocks] = useState<BtcLockRecord[]>(() =>
     typeof window !== "undefined" ? loadBtcLocks() : []
@@ -612,6 +682,25 @@ const Locks = () => {
     if (!activeBtcAddress) return;
     void getRecommendedFeerates(activeBtcAddress).then(setFees);
   }, [activeBtcAddress]);
+
+  useEffect(() => {
+    if (!vaultFromRoute) {
+      setVaultBalanceSats(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const next = await getAddressBalanceSats(vaultFromRoute.derivedVaultAddress);
+        if (!cancelled) setVaultBalanceSats(next);
+      } catch {
+        if (!cancelled) setVaultBalanceSats(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultFromRoute?.id, vaultFromRoute?.derivedVaultAddress]);
 
   // Passive migration: any lock belonging to the connected wallet that's missing
   // script fields gets backfilled in the background so the "Unlock & sweep" button
@@ -724,11 +813,13 @@ const Locks = () => {
 
   const myLocks = useMemo(
     () =>
-      (activeBtcAddress
-        ? locks.filter((l) => l.ownerBtcAddress === activeBtcAddress)
-        : locks
+      (isVaultMode && vaultFromRoute
+        ? locks.filter((l) => l.sourceVaultId === vaultFromRoute.id)
+        : activeBtcAddress
+          ? locks.filter((l) => l.ownerBtcAddress === activeBtcAddress && !l.sourceVaultId)
+          : locks.filter((l) => !l.sourceVaultId)
       ).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [locks, activeBtcAddress]
+    [locks, activeBtcAddress, isVaultMode, vaultFromRoute]
   );
 
   // Smart poller: adaptive cadence (fast when there's work to do, slow when everything is settled).
@@ -879,7 +970,7 @@ const Locks = () => {
   const minUnlockUnix = Math.floor((Date.now() + 60 * 60 * 1000) / 1000);
   const unlockInFuture = unlockUnixSec !== null && unlockUnixSec > minUnlockUnix;
 
-  const availableSats = balanceSats ?? 0;
+  const availableSats = isVaultMode ? (vaultBalanceSats ?? 0) : (balanceSats ?? 0);
   const hasBalance = availableSats > 0;
   const percentOfBalance =
     hasBalance && amountSats > 0
@@ -889,20 +980,27 @@ const Locks = () => {
   const amountUsd = amountSats > 0 && btcUsd ? (amountSats / SATS_PER_BTC) * btcUsd : null;
   const availableUsd = hasBalance && btcUsd ? (availableSats / SATS_PER_BTC) * btcUsd : null;
 
-  const networkForFee = activeBtcAddress ? networkLabelFromAddress(activeBtcAddress) : "mainnet";
+  const networkForFee = isVaultMode && vaultFromRoute
+    ? (vaultFromRoute.network ?? networkLabelFromAddress(vaultFromRoute.linkedBtcAddress))
+    : activeBtcAddress
+      ? networkLabelFromAddress(activeBtcAddress)
+      : "mainnet";
   const platformFeeQuote = useMemo(
-    () => computeBtcPlatformFee(amountSats, networkForFee),
+    () => computeBtcPlatformFee(amountSats, networkForFee, { enforceMinFloor: false }),
     [amountSats, networkForFee]
   );
   const platformFeeUsd =
     platformFeeQuote.enabled && btcUsd
       ? (platformFeeQuote.feeSats / SATS_PER_BTC) * btcUsd
       : null;
-  const totalSpendSats = amountSats + (platformFeeQuote.enabled ? platformFeeQuote.feeSats : 0);
-  const exceedsBalanceWithFee = hasBalance && totalSpendSats > availableSats;
+  // Create-lock request sends one recipient (the lock address). Platform fee for
+  // lock management is charged on unlock/sweep to avoid multi-recipient wallet
+  // modal bugs seen in some providers.
+  const totalSpendSats = amountSats;
+  const exceedsBalanceWithFee = hasBalance && amountSats > availableSats;
 
   const canSubmit =
-    Boolean(activeBtcAddress) &&
+    Boolean(isVaultMode ? vaultFromRoute : activeBtcAddress) &&
     amountSats > 0 &&
     !exceedsBalance &&
     !exceedsBalanceWithFee &&
@@ -918,7 +1016,8 @@ const Locks = () => {
   const feerate = fees ? pickFeerateSatPerVb(fees, "halfHour") : null;
 
   const handleCreateLock = async () => {
-    if (!activeBtcAddress || amountSats <= 0 || !unlockUnixSec) return;
+    const ownerAddress = isVaultMode ? vaultFromRoute?.linkedBtcAddress : activeBtcAddress;
+    if (!ownerAddress || amountSats <= 0 || !unlockUnixSec) return;
     if (amountSats < DUST_LIMIT_SATS) {
       toast({
         title: "Amount too small",
@@ -927,62 +1026,94 @@ const Locks = () => {
       });
       return;
     }
-    const feeQuote = computeBtcPlatformFee(amountSats, networkForFee);
-    const totalOut = amountSats + (feeQuote.enabled ? feeQuote.feeSats : 0);
-    if (balanceSats != null && totalOut > balanceSats) {
+    const totalOut = amountSats;
+    if (availableSats != null && totalOut > availableSats) {
       toast({
         title: "Insufficient balance",
-        description: feeQuote.enabled
-          ? `Need ~${formatBtcFromSats(totalOut)} BTC (lock + ${feeQuote.feeSats} sat platform fee). You hold ${formatBtcFromSats(balanceSats)} BTC.`
-          : `Your wallet holds ${formatBtcFromSats(balanceSats)} BTC. Lower the amount so fees still fit.`,
+        description: `Available balance is ${formatBtcFromSats(availableSats)} BTC. Lower the amount so fees still fit.`,
         variant: "destructive",
       });
       return;
     }
     setCreating(true);
+    if (isVaultMode) setVaultFunding(true);
     const lockId = generateLockId();
     let record: BtcLockRecord | null = null;
     try {
-      const { publicKeyHex } = await resolveOwnerPubkey(walletData, activeBtcAddress);
+      const fallbackVaultPubkey = isVaultMode ? vaultFromRoute?.signerPubkeys?.[0] : undefined;
+      const publicKeyHex = fallbackVaultPubkey
+        ? fallbackVaultPubkey
+        : (
+            await resolveOwnerPubkey(walletData, ownerAddress, {
+              allowWalletRpc: true,
+            })
+          ).publicKeyHex;
       record = createBtcLockRecord({
         id: lockId,
-        ownerBtcAddress: activeBtcAddress,
+        sourceVaultId: isVaultMode ? vaultFromRoute?.id : undefined,
+        ownerBtcAddress: ownerAddress,
         ownerPubkeyHex: publicKeyHex,
         amountSats,
         amountBtc: amount,
         unlockUnixSec,
         note: note.trim() || undefined,
       });
-      const network = getClientConfig(activeBtcAddress).network;
-      const recipients: Array<{ address: string; amount: number }> = [
-        { address: record.lockAddress, amount: amountSats },
-      ];
-      if (feeQuote.enabled && feeQuote.treasury) {
-        recipients.push({ address: feeQuote.treasury, amount: feeQuote.feeSats });
-      }
-      const res = await stacksRequest("sendTransfer", { recipients, network });
-      if (res?.txid) {
-        updateBtcLock(lockId, { txid: res.txid, status: "broadcast" });
-        toast({
-          title: "Lock funded",
-          description: feeQuote.enabled
-            ? `Funds locked until your chosen date. Platform fee ${feeQuote.feeSats} sats.`
-            : "Funds locked until your chosen date.",
+      if (isVaultMode && vaultFromRoute) {
+        const built = await buildVaultSpendPsbt({
+          vault: vaultFromRoute,
+          recipientAddress: record.lockAddress,
+          amountSats,
         });
-        setAmount("");
-        setNote("");
-        const next = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        next.setSeconds(0, 0);
-        setUnlockAt(next);
-        setNewLockOpen(false);
-        void refreshBtc();
+        const signInputs = Array.from({ length: built.inputCount }, (_, i) => i);
+        const signed = await stacksRequest("signPsbt", {
+          psbt: built.psbtBase64,
+          signInputs,
+          broadcast: false,
+          network: built.network,
+        });
+        if (!signed?.psbt) throw new Error("Wallet returned no signed PSBT.");
+        const rawHex = tryFinalizeHex(signed.psbt);
+        if (!rawHex) {
+          throw new Error(
+            "Vault lock funding needs more signatures. Use vault send flow to collect co-signer approvals, then retry lock funding."
+          );
+        }
+        const txid = await broadcastRawTx(rawHex, built.network);
+        updateBtcLock(lockId, { txid, status: "broadcast" });
       } else {
-        removeBtcLock(lockId);
-        toast({
-          title: "No txid returned",
-          description: "Wallet did not return a transaction id.",
-          variant: "destructive",
-        });
+        const network = getClientConfig(ownerAddress).network;
+        const recipients: Array<{ address: string; amount: number }> = [
+          { address: record.lockAddress, amount: amountSats },
+        ];
+        const res = await stacksRequest("sendTransfer", { recipients, network });
+        if (!res?.txid) {
+          removeBtcLock(lockId);
+          toast({
+            title: "No txid returned",
+            description: "Wallet did not return a transaction id.",
+            variant: "destructive",
+          });
+          return;
+        }
+        updateBtcLock(lockId, { txid: res.txid, status: "broadcast" });
+      }
+      toast({
+        title: "Lock funded",
+        description: isVaultMode
+          ? "Vault funds locked until your chosen date."
+          : "Funds locked until your chosen date.",
+      });
+      setAmount("");
+      setNote("");
+      const next = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      next.setSeconds(0, 0);
+      setUnlockAt(next);
+      setNewLockOpen(false);
+      if (isVaultMode && vaultFromRoute) {
+        const refreshed = await getAddressBalanceSats(vaultFromRoute.derivedVaultAddress);
+        setVaultBalanceSats(refreshed);
+      } else {
+        void refreshBtc();
       }
     } catch (e) {
       if (record) removeBtcLock(lockId);
@@ -999,6 +1130,7 @@ const Locks = () => {
       }
     } finally {
       setCreating(false);
+      setVaultFunding(false);
     }
   };
 
@@ -1006,6 +1138,60 @@ const Locks = () => {
     setUnlockingId(lockArg.id);
     let lock = lockArg;
     try {
+      // User-driven fallback for recovered candidates (`unlockUnixSec = 0`):
+      // resolve unlock time on click for this one lock, then continue unlock flow.
+      if (!Number.isFinite(lock.unlockUnixSec) || lock.unlockUnixSec <= 500_000_000) {
+        if (!walletData) {
+          toast({
+            title: "Can't unlock yet",
+            description: "Reconnect the wallet that funded this lock, then try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const candidatePubkeys = Array.from(
+          new Set(
+            [
+              lock.ownerPubkey,
+              walletData.preferredBtc?.address === lock.ownerBtcAddress
+                ? walletData.preferredBtc?.publicKey
+                : undefined,
+              walletData.taprootBtc?.address === lock.ownerBtcAddress
+                ? walletData.taprootBtc?.publicKey
+                : undefined,
+              ...(walletData.addresses?.btc
+                ?.filter((a) => a.address === lock.ownerBtcAddress)
+                .map((a) => a.publicKey) ?? []),
+            ]
+              .filter(Boolean)
+              .map((pk) => String(pk).toLowerCase().replace(/^0x/, ""))
+          )
+        );
+        if (candidatePubkeys.length === 0) {
+          const viaWallet = await resolveOwnerPubkey(walletData, lock.ownerBtcAddress, {
+            allowWalletRpc: true,
+          });
+          candidatePubkeys.push(viaWallet.publicKeyHex.toLowerCase().replace(/^0x/, ""));
+        }
+        let forced: Awaited<ReturnType<typeof resolveUnknownUnlockTimeForLock>> | null = null;
+        for (const ownerPubkeyHex of candidatePubkeys) {
+          const attempt = await resolveUnknownUnlockTimeForLock({ lock, ownerPubkeyHex });
+          if (attempt.resolved && attempt.lock) {
+            forced = attempt;
+            break;
+          }
+        }
+        if (forced?.resolved && forced.lock) {
+          lock = forced.lock;
+          setLocks(loadBtcLocks());
+        } else {
+          toast({
+            title: "Unlock time not resolved yet",
+            description: "Continuing with a full-balance sweep attempt for this lock.",
+          });
+        }
+      }
+
       if (!lockCanSpendOnChain(lock)) {
         // User action — OK to prompt the wallet via `getAddresses` if needed.
         const healed = await tryHealLock(lock, walletData, { allowWalletPrompt: true });
@@ -1070,17 +1256,30 @@ const Locks = () => {
   };
 
   return (
-    <WalletLayout>
+    <WalletLayout
+      mode={isVaultMode ? "btc-vault" : "smart-wallet"}
+      vaultMeta={
+        isVaultMode && vaultFromRoute
+          ? { id: vaultFromRoute.id, name: vaultFromRoute.name, address: vaultFromRoute.derivedVaultAddress }
+          : undefined
+      }
+    >
       <div className="space-y-6 max-w-3xl">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <Lock className="h-7 w-7 text-purple-400" />
-            Locks
+            {isVaultMode ? `${vaultFromRoute?.name ?? "Vault"} locks` : "Locks"}
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Lock BTC until a future date. Nobody can move the funds early — not even us.
+            {isVaultMode
+              ? "Lock BTC directly from this vault until a future date."
+              : "Lock BTC until a future date. Nobody can move the funds early — not even us."}
           </p>
-          {walletId && (
+          {isVaultMode && vaultFromRoute ? (
+            <p className="text-xs text-slate-500 font-mono break-all mt-2">
+              Vault source: {vaultFromRoute.derivedVaultAddress}
+            </p>
+          ) : walletId && (
             <p className="text-xs text-slate-500 font-mono break-all mt-2">Smart wallet: {walletId}</p>
           )}
         </div>
@@ -1091,10 +1290,12 @@ const Locks = () => {
               <Bitcoin className="h-4 w-4 mr-2 text-amber-400" />
               Bitcoin
             </TabsTrigger>
+            {!isVaultMode && (
             <TabsTrigger value="stx" className="data-[state=active]:bg-violet-600/20">
               <Layers className="h-4 w-4 mr-2 text-violet-400" />
               STX
             </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="btc" className="space-y-6 mt-4">
@@ -1119,7 +1320,7 @@ const Locks = () => {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <CardContent className="space-y-5">
-                {!activeBtcAddress ? (
+                {!isVaultMode && !activeBtcAddress ? (
                   <div className="space-y-3 text-slate-300 text-sm">
                     <p>Connect a Bitcoin wallet to create a lock.</p>
                     <PrimaryButton
@@ -1137,12 +1338,18 @@ const Locks = () => {
                       )}
                     </PrimaryButton>
                   </div>
+                ) : isVaultMode && !vaultFromRoute ? (
+                  <p className="text-sm text-slate-400">Vault not found.</p>
+                ) : isVaultMode && vaultFromRoute && !vaultFromRoute.witnessScriptHex ? (
+                  <p className="text-sm text-slate-400">
+                    This vault is legacy preview-only. Create a new vault to lock from vault funds.
+                  </p>
                 ) : (
                   <>
                     <div>
                       <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Locking from</p>
                       <p className="text-sm text-slate-200 font-mono break-all rounded-md bg-slate-900/80 border border-slate-600/60 px-3 py-2">
-                        {activeBtcAddress}
+                        {isVaultMode ? vaultFromRoute?.derivedVaultAddress : activeBtcAddress}
                       </p>
                     </div>
 
@@ -1154,7 +1361,7 @@ const Locks = () => {
                         <div className="text-[11px] text-slate-400">
                           Available:{" "}
                           <span className="text-slate-200 tabular-nums">
-                            {loadingBalance ? "…" : formatBtcFromSats(availableSats)}
+                            {isVaultMode ? (vaultFunding ? "…" : formatBtcFromSats(availableSats)) : (loadingBalance ? "…" : formatBtcFromSats(availableSats))}
                           </span>{" "}
                           <span className="text-amber-200/70 font-bold text-[10px]">BTC</span>
                           {availableUsd != null && (
@@ -1298,7 +1505,7 @@ const Locks = () => {
                         </div>
                         {exceedsBalanceWithFee && (
                           <p className="text-[11px] text-red-300">
-                            Total (incl. platform fee) exceeds your balance.
+                            Total exceeds your balance.
                           </p>
                         )}
                       </div>
@@ -1317,9 +1524,8 @@ const Locks = () => {
 
                     {PLATFORM_FEE_CONFIG.treasuryBtc[networkForFee] && PLATFORM_FEE_CONFIG.bps > 0 && (
                       <p className="text-[11px] text-slate-500">
-                        A {formatFeeBps(PLATFORM_FEE_CONFIG.bps)} platform fee (min{" "}
-                        {PLATFORM_FEE_CONFIG.minSats} sats) supports smart-wallet infra. Sent in the
-                        same transaction to the CSW treasury.
+                        A {formatFeeBps(PLATFORM_FEE_CONFIG.bps)} platform fee supports smart-wallet
+                        infra. For lock flows, it is collected when you unlock/sweep.
                       </p>
                     )}
 
@@ -1332,10 +1538,10 @@ const Locks = () => {
                         {creating ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Confirm in wallet…
+                            {isVaultMode ? "Sign vault tx…" : "Confirm in wallet…"}
                           </>
                         ) : (
-                          "Lock BTC"
+                          isVaultMode ? "Lock from vault" : "Lock BTC"
                         )}
                       </PrimaryButton>
                     </div>
@@ -1379,6 +1585,7 @@ const Locks = () => {
             </Card>
           </TabsContent>
 
+          {!isVaultMode && (
           <TabsContent value="stx" className="mt-4">
             <Card className="bg-slate-800/50 border-violet-900/30">
               <CardHeader>
@@ -1403,6 +1610,7 @@ const Locks = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
         </Tabs>
       </div>
     </WalletLayout>

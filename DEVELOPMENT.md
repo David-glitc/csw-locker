@@ -174,3 +174,204 @@ Three pain points the user flagged in one turn: (1) no way to charge a platform 
 - **`pages/Locks.tsx` recovery effect:** on first mount per `(addr, pubkey)` we still do the full chain scan; on subsequent renders of the same pair we just call `resolveUnknownUnlockTimes` (cheap, no network) so refreshing the page or reconnecting the wallet eventually resolves stuck candidates. Toasts when ≥1 are resolved.
 - **`pages/Locks.tsx` chip honesty (`chipFor`):** rows with unknown `unlockUnixSec` (chain-recovered candidates) used to display "Unlock window open" because `0 * 1000 ≤ now`. Now they show a "Recovering unlock time…" amber pill with a spinner until the brute-force resolves them.
 - **Collapsible "New BTC lock" card (`pages/Locks.tsx`):** wrapped the create-lock card in a `Collapsible` that's closed by default — the existing locks list (the thing users come here for after their first session) now owns the viewport. Clicking the header opens the form; a successful broadcast auto-collapses it again so the new entry slides into the list cleanly. Header shows "Lock new funds" / "Hide" plus a rotating chevron for affordance.
+
+## 2026-04-25 15:45 - Merge conflict recovery for btc-locks-vaults vs upstream/dev
+
+- Resolved all Git unmerged paths by preserving the `btc-locks-vaults` branch versions for conflicted files and retaining non-conflicting upstream additions already present in the merge index. This removed all `UU/UD` conflict states and restored a clean working tree.
+- Fixed post-merge regressions: removed stale `ui/sonner` import from `src/App.tsx`, added missing dependencies (`@stacks/blockchain-api-client`, `@stacks/common`) to `ui-v3/package.json`/lockfile, and added a backward-compatible `useUserWalletConnection` export in `src/hooks/useWalletConnection.ts` so newer unified-header consumers still compile.
+
+## 2026-04-27 16:50 — Vault flow continuation (settings shutdown + lock pubkey fallback)
+
+- `ui-v3/src/pages/BtcVaultSettings.tsx`: added an on-chain shutdown workflow in vault settings (build shutdown PSBT, sign with wallet, broadcast, then remove local vault record), and fixed hook ordering/dependency issues so settings render is stable.
+- `ui-v3/src/pages/BtcVaultView.tsx`: removed duplicated shutdown state/handlers after relocating shutdown actions to settings, keeping the dashboard focused on receive/send/history and reducing conflicting flows.
+- `ui-v3/src/pages/Locks.tsx`: hardened lock creation pubkey resolution by always falling back to vault signer pubkey in vault mode, preventing missing-session pubkey failures during vault-backed lock creation.
+
+## 2026-04-28 05:55 — User-scoped vault/lock isolation + vault receive cleanup
+
+- `ui-v3/src/lib/btcVaultStorage.ts` + `ui-v3/src/lib/btcLockStorage.ts`: tightened scoped-localStorage behavior so once a scoped key exists (even empty) it no longer rehydrates from legacy global keys; this isolates per-wallet state on shared devices and prevents deleted items from silently returning from fallback migration.
+- `ui-v3/src/lib/btcVaultStorage.ts`: added scoped deleted-vault tombstones and applied them during load/migration to make vault deletion permanent in UI until explicitly recreated/imported.
+- `ui-v3/src/pages/BtcVaultView.tsx` + `ui-v3/src/pages/ReceiveAssets.tsx`: removed vault QR/deposit-request controls from dashboard cards and moved the BTC vault QR/request URI flow into the vault receive page surface.
+- `ui-v3/src/lib/btcLockSpend.ts` + `ui-v3/src/pages/Locks.tsx`: removed strict unlock-time pre-veto and let unlock continue as a full-balance sweep attempt path even when unlock time recovery is not yet resolved.
+- `ui-v3/src/pages/BtcVaultSignatures.tsx`: fixed multisig signer collaboration route typo and added a short coordination code display derived from vault script fingerprint to improve signer coordination checks.
+
+## 2026-04-28 20:50 — Vault receive/send route parity + BTC history detail pass
+
+- `ui-v3/src/pages/SendAssets.tsx` + `ui-v3/src/App.tsx` + `ui-v3/src/pages/BtcVaultSend.tsx`: added a dedicated vault send route/page (`/btc-vault/:vaultId/send`) and routed vault send entries there instead of embedding send only inside the dashboard surface.
+- `ui-v3/src/pages/BtcVaultView.tsx`: quick-action deposit/send now route to dedicated pages (`/receive/:vaultId` and `/btc-vault/:vaultId/send`) instead of relying on in-dashboard controls only.
+- `ui-v3/src/pages/ReceiveAssets.tsx`: vault receive now keeps QR value as the plain vault address, shows BTC asset info and top ordinal previews, and adds a deposit button that opens a wallet `sendTransfer` request to the vault address using the input BTC amount.
+- `ui-v3/src/pages/ActionHistory.tsx`: bitcoin tab now includes expandable transaction details (inputs, outputs, net flow, fee) with mempool-style on-chain context and shared scrollbar behavior; also normalized STX pricing usage via `AssetPricesContext` for consistency with dashboard/overview surfaces.
+
+## 2026-04-28 20:56 — Policy preset expansion + USD parity cleanup
+
+- `ui-v3/src/pages/BtcVaultSettings.tsx`: added explicit policy preset controls: solo timelock quick presets (`24h`, `7d`, `30d`) and multisig spending posture presets (`conservative`, `balanced`, `aggressive`) that map to enforceable threshold/timelock inputs before script rebuild.
+- `ui-v3/src/pages/BtcVaultSettings.tsx`: added stronger input validation for threshold and timelock unix values before attempting script rebuild, so invalid policy values fail with clear user-facing errors.
+- `ui-v3/src/components/dashboard/AssetOverview.tsx`: removed local lock-total aggregation from overview total calculation and kept `computePortfolioUsd` input focused on STX/sBTC/native BTC balances only, avoiding double-counting against dashboard’s locked-BTC card and tightening USD parity across surfaces.
+
+## 2026-04-28 06:35 — Vault receive/send UX parity + bitcoin history detail pass
+
+- `ui-v3/src/pages/ReceiveAssets.tsx`: vault-mode receive now keeps QR payload as address-only, shows BTC balance + top 3 ordinals, and adds a "Deposit to vault" button that opens a wallet `sendTransfer` request using the entered BTC amount.
+- `ui-v3/src/pages/BtcVaultView.tsx`: quick-action "Send" now opens the dedicated vault send page (`/btcvault/:vaultId/send`) instead of jumping to the dashboard section; quick-action deposit remains routed to vault receive page.
+- `ui-v3/src/pages/ActionHistory.tsx`: bitcoin tab now uses a stack-style scroll container and expands each tx to show net flow, input/output rows, and fee details (mempool-derived), instead of hash-only rows.
+- `ui-v3/src/components/dashboard/RecentActivity.tsx` + `ui-v3/src/pages/ActionHistory.tsx`: STX price usage now comes from `AssetPricesContext` for consistency with other pages and fewer one-off refetch spikes.
+- `ui-v3/src/pages/Dashboard.tsx`: locked BTC headline text sizing was tightened for responsive rows to prevent layout distortion on smaller widths.
+
+## 2026-04-27 17:10 — User-isolated storage + signer coordination hardening
+
+- Added `ui-v3/src/lib/userScope.ts` and switched user-facing local state (`onboardingStorage`, `networkPreference`, `recipientStorageService`, `SmartWalletContext`) to scoped keys tied to the active signed-in wallet scope, with legacy-key migration fallback so existing device data is preserved but separated per user going forward.
+- Tightened vault signer coordination in `ui-v3/src/lib/btcVaultStorage.ts`: share links now include a vault coordination fingerprint, and import rejects tampered payloads or same-id collisions with mismatched signer/script configuration to prevent cross-signer confusion.
+- Strengthened `ui-v3/src/pages/BtcVaultSignatures.tsx`: added signer-membership checks against connected wallet pubkeys, PSBT-to-vault input validation (script match), and signature progress indicators (`collected/required`) before allowing broadcast.
+
+## 2026-04-27 15:20 — Vault delete UX, selector balances, vault-route rendering, enforceable policy updates
+
+- `ui-v3/src/pages/BtcVaultView.tsx`: added safe delete flow for unfunded vaults (`balance === 0`) with explicit confirmation prompt, and route-aware section focusing so vault pages opened via `/send/:vaultId`, `/receive/:vaultId`, or `/history/:vaultId` auto-scroll to the corresponding vault section.
+- `ui-v3/src/components/wallet-selector/BtcVaultCard.tsx`: added live vault balance fetch/render on selector cards and kept solo/multisig badge context visible for faster vault triage.
+- `ui-v3/src/components/DesktopSidebar.tsx` and `ui-v3/src/components/MobileNavigationDrawer.tsx`: in vault mode, Send/Receive/History now route through the shared pages (`/send/:walletId`, `/receive/:walletId`, `/history/:walletId`) instead of hash-only links.
+- `ui-v3/src/pages/SendAssets.tsx`, `ui-v3/src/pages/ReceiveAssets.tsx`, `ui-v3/src/pages/ActionHistory.tsx`: vault ids now render `BtcVaultView` directly on these routes (no redirect loop), preserving vault context while using the same navigation entry points.
+- `ui-v3/src/lib/btcScript.ts`, `ui-v3/src/lib/btcVaultStorage.ts`, `ui-v3/src/pages/BtcVaultSettings.tsx`: added enforceable script-policy update path (solo `standard`/`timelock` and multisig threshold rebuild), with script/address regeneration and a safety gate that blocks policy updates while a vault has funds.
+
+## 2026-04-27 15:35 — Revert vault route embedding + enforce post-free vault gate
+
+- `ui-v3/src/pages/SendAssets.tsx`, `ui-v3/src/pages/ReceiveAssets.tsx`, `ui-v3/src/pages/ActionHistory.tsx`: reverted vault-id handling from inline `BtcVaultView` rendering back to redirects into `btc-vault` anchors, restoring expected smart-wallet page behavior and avoiding vault-dashboard takeover in send/receive/history routes.
+- `ui-v3/src/components/DesktopSidebar.tsx`, `ui-v3/src/components/MobileNavigationDrawer.tsx`: reverted vault mode send/receive/history links to `#vault-send`, `#vault-receive`, `#vault-history` deep links on the vault page.
+- `ui-v3/src/pages/CreateBtcVault.tsx`: added a hard gate to block unpaid vault creation beyond the first 2 free vaults; now vault #3+ creation is prevented with a fee-required error until payment wiring is implemented.
+
+## 2026-04-27 15:55 — Restore original Create Wallet UX flow
+
+- `ui-v3/src/pages/CreateWallet.tsx`: fully restored the original create-wallet page flow and UI structure provided by the user (header profile menu, network switcher, wallet name/description form, extension checklist, summary card, and simulated create action).
+- `ui-v3/src/data/walletExtensions.ts`: reintroduced `getSortedExtensions()` compatibility data source expected by the original flow, derived from existing `CONTRACT_TYPES` extension metadata so the restored page compiles and renders extension options.
+
+## 2026-04-27 16:00 — Vault creation fee payment workflow (pay before create)
+
+- `ui-v3/src/pages/CreateBtcVault.tsx`: implemented paid-tier workflow so vaults beyond the free quota now require an on-chain STX transfer approval before the vault record is created. Flow is now: compute tier fee -> prompt fee approval (`stx_transferStx`) -> create vault only after a successful fee txid.
+- Added review-step fee UX for paid tiers (USD + STX estimate and explicit pre-create payment notice), and wired fee amount calculation by policy (`solo` starts at `$1.2`, multisig scales by threshold up to `$3`).
+- Added runtime safeguards for missing treasury configuration, disconnected STX sender, and unavailable STX/USD quote to prevent creating unpaid paid-tier vaults.
+
+## 2026-04-27 16:20 — Multi-rail fee payment + funded-delete safeguards + taproot ordinal indexing
+
+- `ui-v3/src/pages/CreateBtcVault.tsx`: added user-selectable fee payment rail and chain for paid-tier vault creation (`Stacks/STX` or `Bitcoin/BTC`). Creation now executes the selected on-chain payment request first (`stx_transferStx` for STX or `sendTransfer` for BTC), then creates the vault only on successful txid.
+- `ui-v3/src/pages/CreateBtcVault.tsx`: improved paid-tier review UX with both STX and BTC quote visibility and explicit payment-rail selection so users can choose asset/chain before submitting.
+- `ui-v3/src/pages/BtcVaultView.tsx`: hardened delete behavior by warning and blocking delete attempts when vault balance is non-zero, including the legacy delete path, to prevent funded vault disappearance from local listings.
+- `ui-v3/src/services/btcMempoolService.ts`: added taproot ordinals indexing helper (`getTaprootOrdinalInscriptions`) using a public ordinals API with graceful fallback.
+- `ui-v3/src/pages/BtcVaultView.tsx`: added ordinal holdings display row in vault assets panel (taproot address + inscription count + sample id preview) to surface taproot/ordinal assets in the BTC asset display area.
+
+## 2026-04-24 19:20 — End-to-end BTC vault conditional rendering + vault policy/settings surfaces
+
+- Introduced a dedicated vault-mode route boundary in `ui-v3/src/lib/vaultRoute.ts` and applied route guards in STX-only pages (`GenericActions`, `ContractActions`, `ContractDetails`, `Stacking`, `WalletDetails`) so vault IDs no longer render smart-wallet/STX services; they now redirect to vault-native pages.
+- Added vault-native pages and routes: `ui-v3/src/pages/BtcVaultPolicies.tsx` and `ui-v3/src/pages/BtcVaultSettings.tsx`, wired in `ui-v3/src/App.tsx` as `/btc-vault/:vaultId/policies` and `/btc-vault/:vaultId/settings`, with policy-first BTC script review and multisig-member label management.
+- Added shared layout mode split: `WalletLayout`, `WalletHeader`, `DesktopSidebar`, and `MobileNavigationDrawer` now support `mode="btc-vault"`, hide STX surfaces in vault mode, and render vault-specific navigation (Dashboard, Send, Receive, History, Locks, Policies, Settings) while removing smart-wallet menus like Contract Actions/Extensions/Contract Details.
+- Updated `BtcVaultView` to pass vault metadata into vault-mode layout and expanded vault storage API with `updateBtcVault` in `ui-v3/src/lib/btcVaultStorage.ts` to support settings updates cleanly through shared storage/events.
+
+## 2026-04-24 19:35 — Vault menu deep-link fix + duplicate key warning removal
+
+- Fixed React duplicate-key warnings in vault navigation (`DesktopSidebar`/`MobileNavigationDrawer`) by making vault menu routes unique with hash deep-links (`#vault-send`, `#vault-receive`, `#vault-history`) and using stable composite keys (`path+label`) for rendered nav items.
+- Implemented vault-section deep links end-to-end by anchoring `BtcVaultView` sections with IDs (`vault-send`, `vault-receive`, `vault-history`) and active-nav matching against `pathname + hash` so menu state is accurate while staying on the vault dashboard route.
+
+## 2026-04-24 19:50 — Vault-funded BTC locks + stricter vault/smart-wallet separation
+
+- `ui-v3/src/pages/Locks.tsx`: added vault-aware lock mode (`getVaultFromRouteId`) so `/locks/:walletId` can operate as a vault-native lock screen when `walletId` is a BTC vault id. In vault mode, the page uses `WalletLayout` in `btc-vault` mode, shows vault source metadata, hides STX lock tab, and scopes lock list to that vault only.
+- `Locks.tsx`: `handleCreateLock` now supports two funding paths: (1) regular wallet transfer (existing behavior) and (2) vault-funded lock creation via `buildVaultSpendPsbt` + `signPsbt` + finalize+broadcast. This enables vault balances to lock BTC directly on-chain.
+- `ui-v3/src/lib/btcLockStorage.ts`: added `sourceVaultId` on lock records and create input, including type-guard support; used by lock list filtering so smart-wallet locks and vault locks are not mixed.
+- Vault lock UX updates: lock source address and available balance now resolve from vault context in vault mode, and lock CTA copy reflects vault signing flow (`Sign vault tx` / `Lock from vault`).
+
+## 2026-04-24 20:00 — Lock source badges + vault-reflective sidebar labels
+
+- `ui-v3/src/pages/Locks.tsx`: added a per-lock funding source badge in each lock row header (`Vault` vs `Wallet`) using the persisted `sourceVaultId`, so mixed histories clearly show where each lock came from.
+- `ui-v3/src/components/DesktopSidebar.tsx` and `ui-v3/src/components/MobileNavigationDrawer.tsx`: in vault mode, renamed the lock menu label to `Vault Locks` so the sidebar/navigation explicitly reflects vault context instead of generic locks wording.
+
+## 2026-04-24 19:20 — Vault shutdown flow + strict vault/smart-wallet data separation
+
+- Added a full vault shutdown path in `ui-v3/src/pages/BtcVaultView.tsx`: users can start shutdown, sign, and broadcast a sweep-all transaction back to their connected BTC address; on success the vault is removed from local vault storage.
+- Added `buildVaultShutdownPsbt` in `ui-v3/src/lib/btcVaultSpend.ts` for deterministic sweep-all PSBT construction (all vault UTXOs, miner fee budgeting, optional platform-fee output, no change output), supporting both solo and multisig vaults.
+- Implemented multisig approval semantics for shutdown in `BtcVaultView`: shared vaults can circulate/import shutdown PSBTs for co-signing, and broadcast only once enough approvals are collected.
+- Enforced strict data-domain separation by guarding smart-wallet pages from vault IDs: `Dashboard`, `SendAssets`, `ReceiveAssets`, and `ActionHistory` now route vault IDs to `btc-vault` pages instead of rendering Stacks smart-wallet data with BTC vault context.
+
+## 2026-04-24 19:40 — Lock recovery + wallet prompt suppression + forced 1% platform fee
+
+- `ui-v3/src/lib/btcOwnerPubkey.ts`: removed `getAddresses` wallet-RPC fallback from owner-pubkey resolution. BTC lock/vault flows now use existing in-session BTC pubkeys only, preventing extra wallet popup prompts before actual signing requests.
+- `ui-v3/src/pages/Locks.tsx`: strengthened unknown unlock-time recovery by trying all matching BTC pubkeys from the current wallet session (owner field + preferred/taproot/address list) before failing, improving recovery success for legacy candidate locks.
+- `ui-v3/src/lib/platformFee.ts`: hard-pinned BTC platform fee rate to `100` bps (`1%`) regardless of env fee-bps values, while keeping treasury and min/cap address configuration intact.
+
+## 2026-04-24 20:05 — Finalized unlock/shutdown reliability and vault UI pass
+
+- `ui-v3/src/lib/btcOwnerPubkey.ts`: reintroduced a controlled wallet RPC fallback (`allowWalletRpc`) so unlock/recovery can request `getAddresses` when session pubkeys are missing, while keeping non-interactive flows silent by default.
+- `ui-v3/src/pages/Locks.tsx` + `ui-v3/src/lib/btcLockHeal.ts`: unlock/recover now tries all local candidate pubkeys first, then explicitly falls back to wallet RPC for missing pubkeys. This restores the reconnect path for stuck recovered locks without forcing reconnect on every BTC action.
+- `ui-v3/src/lib/btcVaultSpend.ts`: enforced a safer minimum shutdown/send feerate floor (`>= 5 sat/vB`) to reduce mempool rejection risk that surfaced as `POST /tx 400` during vault shutdown broadcasts.
+- `ui-v3/src/pages/BtcVaultView.tsx`: moved vault page into `WalletLayout` and tightened heading/layout structure so the vault screen matches app surfaces more closely and no longer feels like a standalone rough page.
+
+## 2026-04-24 20:25 — Unrecoverable unknown-time lock terminal state
+
+- Added deterministic recovery terminal state fields in `ui-v3/src/lib/btcLockStorage.ts`: `unknownUnlockResolveAttempts` and `unknownUnlockUnrecoverable` on lock rows.
+- `ui-v3/src/lib/btcLockRecovery.ts`: after exhaustive unlock-time brute-force misses, increment attempts and mark rows unrecoverable at threshold (`>=3`) with note `"Not a CSW lock script"`, instead of leaving rows in indefinite recovering state.
+- `ui-v3/src/pages/Locks.tsx`: unknown-time rows now show a terminal status chip/message (`Not a CSW lock script`) and stop presenting the recover/unlock CTA when marked unrecoverable, giving users a deterministic final UI state.
+
+## 2026-04-24 20:55 — Create-lock pubkey fallback, shutdown dust guard, vault-route undefined fix
+
+- `ui-v3/src/pages/Locks.tsx` + `ui-v3/src/pages/CreateBtcVault.tsx`: restored wallet-RPC pubkey fallback (`allowWalletRpc: true`) for create/sign BTC actions so missing session pubkeys no longer block lock/vault creation with reconnect errors.
+- `ui-v3/src/lib/btcVaultSpend.ts`: added dust guard for platform-fee outputs in vault spend/shutdown builders; treasury output is skipped when fee would be below dust to prevent non-standard tx broadcast rejections (`POST /tx 400`).
+- `ui-v3/src/components/WalletLayout.tsx`, `DesktopSidebar.tsx`, `MobileNavigationDrawer.tsx`: hardened route generation with wallet-id fallback and safe default paths (`/wallet-selector`) so vault views no longer render links with `undefined`.
+- `ui-v3/src/lib/assetUsd.ts` + `ui-v3/src/lib/stxPrice.ts`: removed Charisma-first browser call and added resilient STX spot fetch fallbacks to reduce CORS/payment/429 noise in local dev price loading.
+
+## 2026-04-25 16:10 — Conclusive unlock fallback for recovered locks
+
+- Added `resolveUnknownUnlockTimeForLock(...)` in `ui-v3/src/lib/btcLockRecovery.ts`: a single-lock click-time resolver that brute-forces unlock time for one candidate row, patches `unlockUnixSec` + script fields, and returns an updated lock immediately. This avoids waiting on background queues.
+- Updated `ui-v3/src/pages/Locks.tsx` unlock flow: when a row has unknown unlock time (`unlockUnixSec <= 500_000_000`), clicking unlock now prompts once for the owner pubkey, force-resolves that row, and continues into normal sweep signing in the same action if resolution succeeds.
+- Updated lock row CTA visibility/text for unknown-time candidates: users now get a direct button (`Recover time & unlock`) instead of being blocked until passive recovery finishes.
+- Replaced the misleading legacy helper text for unknown-time recovered rows with an action-oriented message that points users to the new force-resolve unlock path.
+
+## 2026-04-25 16:35 — Blank page crash fix (runtime provider wiring + safe address parsing)
+
+- Fixed runtime crash in `ui-v3/src/utils/chain-config.ts`: `inferNetworkFromAddress` and `getClientConfig` now safely handle `undefined`/`null` addresses instead of calling `.trim()` on non-strings.
+- Fixed top-level app provider wiring in `ui-v3/src/App.tsx`: wrapped routed app content in `WalletConnectionProvider` so components using `useWalletConnection()` (e.g. landing sections and header) no longer throw "must be used within a WalletConnectionProvider".
+- Verified recovery by reloading `http://localhost:8080/`: page renders full landing content again (no blank document).
+
+## 2026-04-25 16:50 — Wallet Selector blank page (`?demo=true`) fix
+
+- Root cause was missing `DemoModeProvider`, not envs: `WalletSelector` calls `useDemoMode()` and crashed with `useDemoMode must be used within a DemoModeProvider` on `/wallet-selector?demo=true`.
+- Wrapped app providers in `ui-v3/src/App.tsx` with `DemoModeProvider` under `WalletConnectionProvider`, preserving the existing provider order for wallet + BTC + prices.
+- Re-tested `/wallet-selector?demo=true` and confirmed the page renders normally (header, actions, demo notice, empty-wallet state) instead of blank.
+
+## 2026-04-25 17:05 — Demo mode no longer overrides real connected wallets
+
+- Updated `ui-v3/src/pages/WalletSelector.tsx` demo selection logic to compute `effectiveDemoMode` from route intent + real wallet availability instead of blindly trusting `?demo=true`.
+- New behavior: demo wallets render only when `demo=true` **and** there are no real smart wallets (deployed/imported) and no BTC vaults to show. If real data exists, the selector always prioritizes and renders real wallets.
+- Kept demo notice, totals, and add-wallet dialog flags tied to `effectiveDemoMode`, so UI state stays consistent with what’s actually rendered.
+
+## 2026-04-25 17:30 — Unlock reliability + demo-service precedence fixes
+
+- `ui-v3/src/lib/btcLockSpend.ts`: added unlock preflight guard to fail early with a clear message when `unlockUnixSec` is still in the future, and aligned transaction `nLockTime` to the lock script timestamp (`lock.unlockUnixSec`) to avoid mempool `non-final` rejections caused by wall-clock locktime skew.
+- `ui-v3/src/services/bitcoinTxService.ts`: added fee-estimate fallback to Blockstream (`/fee-estimates`) when mempool.space fee endpoint returns non-200 (e.g. 503). This keeps unlock/build flow alive during mempool API outages.
+- `ui-v3/src/hooks/useSmartWalletContractService.ts` and `ui-v3/src/hooks/useAccountBalanceService.tsx`: fixed `useDemoMode` consumption (`{ isDemoMode }`) and introduced `useDemoServices` gating so demo mocks are only used for demo addresses (or no address), never for connected real wallet addresses. This prevents demo data from overriding deployed-wallet fetches for real accounts.
+
+## 2026-04-25 18:00 — Vault uniqueness + history + lock fee behavior follow-ups
+
+- `ui-v3/src/lib/btcVaultStorage.ts` + `ui-v3/src/pages/CreateBtcVault.tsx`: hardened solo-vault nonce commitment generation/length (up to 64 hex chars with timestamp+random fallback) so repeated solo vault creations for the same owner cannot collapse to the same derived P2WSH address.
+- `ui-v3/src/services/transactionDataService.ts`: removed the over-restrictive `token_transfer` filter in `fetchTransactionsFromAPI`, so contract-call and other relevant Stacks tx rows are no longer dropped, fixing empty history lists for many wallets.
+- `ui-v3/src/lib/platformFee.ts`: added `PlatformFeeOptions` with `enforceMinFloor` to allow proportional-fee mode.
+- `ui-v3/src/pages/Locks.tsx` and `ui-v3/src/lib/btcLockSpend.ts`: switched lock-fee quotes to `enforceMinFloor: false` so lock platform fee follows configured bps directly instead of being pinned by a min-sats floor (e.g., ~546 sats).
+- `ui-v3/src/pages/Dashboard.tsx`: included active locked BTC value in aggregate portfolio USD total in addition to the dedicated “Locked BTC” card.
+
+## 2026-04-25 18:20 — Create-lock wallet black-screen mitigation
+
+- `ui-v3/src/pages/Locks.tsx`: changed create-lock broadcast payload to a single BTC recipient (the lock address) to avoid wallet modal black-screen failures seen with multi-recipient `sendTransfer` requests on some providers.
+- Updated create-lock UX copy and totals to match behavior: platform fee remains shown as policy info but is collected on unlock/sweep flow, not in the initial lock-funding request.
+- Preserved proportional fee behavior (`enforceMinFloor: false`) for lock flows and kept unlock-side fee charging intact.
+
+## 2026-04-25 18:05 — Transaction history + vault derivation hardening
+
+- `ui-v3/src/services/transactionDataService.ts`: removed static API client binding and now derives the Stacks API base URL per-wallet-address on each request (`clientForAddress(address)`), fixing empty history results from network mismatch (testnet/mainnet principal queried against wrong API host).
+- Added null-safe principal handling in transaction post-condition parsing to avoid runtime failures when post-conditions are absent.
+- `ui-v3/src/lib/btcScript.ts` + `ui-v3/src/lib/btcVaultStorage.ts` + `ui-v3/src/pages/CreateBtcVault.tsx`: added nonce commitment support for solo vault derivation so multiple solo vaults from the same owner key can deterministically produce unique deposit addresses.
+- `ui-v3/src/pages/Dashboard.tsx`: added a new "Locked BTC" stat card that sums active (unswept) BTC lock amounts from local lock storage.
+- `ui-v3/src/lib/platformFee.ts`: default minimum sats floor is now `0` so 10 bps remains proportional unless explicitly configured via env floor.
+
+## 2026-04-25 18:20 — Vault uniqueness, STX history fetch stability, dashboard locked BTC
+
+- `ui-v3/src/lib/btcScript.ts` + `ui-v3/src/lib/btcVaultStorage.ts` + `ui-v3/src/pages/CreateBtcVault.tsx`: solo vault derivation now supports a per-vault nonce commitment embedded in the witness script (`<nonce> DROP <pubkey> CHECKSIG`) so creating multiple solo vaults from the same wallet yields different addresses. The nonce is derived from the vault id and persisted on the record.
+- `ui-v3/src/services/transactionDataService.ts`: fixed network-client selection to be per-address (instead of one client initialized without wallet context), and hardened post-condition sender extraction against missing post conditions. This removes a silent empty-array failure path in Stacks history processing.
+- `ui-v3/src/pages/Dashboard.tsx`: added a `Locked BTC` stat card showing total active lock principal (all non-spent funded BTC locks from local lock records) and wired live updates from lock storage change events.
+- `ui-v3/src/lib/platformFee.ts`: changed default minimum BTC platform fee floor from `546` sats to `0` sats so lock fees can follow proportional bps behavior on small amounts by default.
+
+## 2026-04-25 15:45 - Merge conflict recovery for btc-locks-vaults vs upstream/dev
+
+- Resolved all Git unmerged paths by preserving the `btc-locks-vaults` branch versions for conflicted files and retaining non-conflicting upstream additions already present in the merge index. This removed all `UU/UD` conflict states and restored a clean working tree.
+- Fixed post-merge regressions: removed stale `ui/sonner` import from `src/App.tsx`, added missing dependencies (`@stacks/blockchain-api-client`, `@stacks/common`) to `ui-v3/package.json`/lockfile, and added a backward-compatible `useUserWalletConnection` export in `src/hooks/useWalletConnection.ts` so newer unified-header consumers still compile.

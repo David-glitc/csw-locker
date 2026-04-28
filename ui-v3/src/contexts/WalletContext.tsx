@@ -17,6 +17,7 @@ interface WalletContextType {
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
+const USER_SCOPE_KEY = "csw_user_scope_key";
 
 export const useWalletContext = () => {
   const context = useContext(WalletContext);
@@ -45,9 +46,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           if (transformed) {
             setWalletData(transformed);
             setIsWalletConnected(true);
+            const scopeAddress =
+              transformed.preferredStx?.address ?? transformed.preferredBtc?.address ?? "";
+            if (scopeAddress) localStorage.setItem(USER_SCOPE_KEY, scopeAddress.toLowerCase());
           } else {
             setIsWalletConnected(false);
             setWalletData(null);
+            localStorage.removeItem(USER_SCOPE_KEY);
           }
         } catch (error) {
           console.error("Error getting wallet data:", error);
@@ -55,6 +60,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       } else {
         setIsWalletConnected(false);
         setWalletData(null);
+        localStorage.removeItem(USER_SCOPE_KEY);
       }
     };
 
@@ -71,8 +77,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       const transformed = walletSessionFromConnectResponse(response);
       if (transformed) {
         setWalletData(transformed);
+        const scopeAddress = transformed.preferredStx?.address ?? transformed.preferredBtc?.address ?? "";
+        if (scopeAddress) localStorage.setItem(USER_SCOPE_KEY, scopeAddress.toLowerCase());
       } else {
         setWalletData(null);
+        localStorage.removeItem(USER_SCOPE_KEY);
       }
     } catch (error) {
       console.error("Failed to connect wallet:", error);
@@ -85,6 +94,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     disconnect();
     setIsWalletConnected(false);
     setWalletData(null);
+    localStorage.removeItem(USER_SCOPE_KEY);
   };
 
   const value: WalletContextType = {

@@ -378,6 +378,8 @@ export async function recoverLocksFromChain(opts: {
         vout: idx,
         status: tx.status?.confirmed ? "confirmed" : "broadcast",
         note: "Recovered from chain — unlock time unknown",
+        unknownUnlockResolveAttempts: 0,
+        unknownUnlockUnrecoverable: false,
       });
       queuedForBrute.add(`${vo.scriptpubkey_address}:${tx.txid}:${idx}`);
       knownByOutpoint.add(outpointKey);
@@ -408,9 +410,23 @@ export async function recoverLocksFromChain(opts: {
               witnessScriptHex: derived.witnessScriptHex,
               scriptPubkeyHex: derived.scriptPubkeyHex,
               note: "Recovered from chain",
+              unknownUnlockResolveAttempts: 0,
+              unknownUnlockUnrecoverable: false,
             });
           }
         } else {
+          const persisted = loadBtcLocks().find((l) => l.id === c.id);
+          if (persisted) {
+            const attempts = (persisted.unknownUnlockResolveAttempts ?? 0) + 1;
+            const unrecoverable = attempts >= 3;
+            updateBtcLock(c.id, {
+              unknownUnlockResolveAttempts: attempts,
+              unknownUnlockUnrecoverable: unrecoverable,
+              note: unrecoverable
+                ? "Not a CSW lock script"
+                : persisted.note ?? "Recovered from chain — unlock time unknown",
+            });
+          }
           notifyBtcLocksChanged();
         }
       }
@@ -515,12 +531,86 @@ export async function resolveUnknownUnlockTimes(opts: {
         witnessScriptHex: derived.witnessScriptHex,
         scriptPubkeyHex: derived.scriptPubkeyHex,
         note: "Recovered from chain",
+        unknownUnlockResolveAttempts: 0,
+        unknownUnlockUnrecoverable: false,
       });
       resolved += 1;
+    } else {
+      const attempts = (lock.unknownUnlockResolveAttempts ?? 0) + 1;
+      const unrecoverable = attempts >= 3;
+      updateBtcLock(lock.id, {
+        unknownUnlockResolveAttempts: attempts,
+        unknownUnlockUnrecoverable: unrecoverable,
+        note: unrecoverable ? "Not a CSW lock script" : lock.note,
+      });
     }
   }
   if (resolved > 0) notifyBtcLocksChanged();
   return { resolved };
+}
+
+/**
+ * Resolve unlock time for one specific lock row.
+ *
+ * This is the click-time "force resolve" path used from Unlock flow:
+ * - no address-history rescan
+ * - no background queue
+ * - just brute-force this single lock and patch immediately on hit
+ */
+export async function resolveUnknownUnlockTimeForLock(opts: {
+  lock: BtcLockRecord;
+  ownerPubkeyHex: string;
+}): Promise<{ resolved: boolean; lock?: BtcLockRecord }> {
+  const { lock } = opts;
+  if (lock.status === "spent") return { resolved: false };
+  if (Number.isFinite(lock.unlockUnixSec) && lock.unlockUnixSec > 500_000_000) {
+    return { resolved: true, lock };
+  }
+
+  let ownerPubkey: Uint8Array;
+  try {
+    ownerPubkey = parsePubkey(opts.ownerPubkeyHex);
+  } catch {
+    return { resolved: false };
+  }
+
+  const network = btcNetworkFromAddress(lock.ownerBtcAddress);
+  const fundedAt =
+    lock.fundedAtUnixSec ??
+    Math.floor(new Date(lock.createdAt).getTime() / 1000);
+  const found = await recoverUnlockTimeForAddress(
+    lock.lockAddress,
+    ownerPubkey,
+    network,
+    Number.isFinite(fundedAt) && fundedAt > 0
+      ? fundedAt
+      : Math.floor(Date.now() / 1000)
+  );
+  if (found == null) {
+    const attempts = (lock.unknownUnlockResolveAttempts ?? 0) + 1;
+    const unrecoverable = attempts >= 3;
+    updateBtcLock(lock.id, {
+      unknownUnlockResolveAttempts: attempts,
+      unknownUnlockUnrecoverable: unrecoverable,
+      note: unrecoverable ? "Not a CSW lock script" : lock.note,
+    });
+    notifyBtcLocksChanged();
+    return { resolved: false };
+  }
+
+  const derived = deriveCltvP2wshLock(ownerPubkey, found, network);
+  const patch: Partial<BtcLockRecord> = {
+    unlockUnixSec: found,
+    ownerPubkey: opts.ownerPubkeyHex.toLowerCase().replace(/^0x/, ""),
+    witnessScriptHex: derived.witnessScriptHex,
+    scriptPubkeyHex: derived.scriptPubkeyHex,
+    note: "Recovered from chain",
+    unknownUnlockResolveAttempts: 0,
+    unknownUnlockUnrecoverable: false,
+  };
+  updateBtcLock(lock.id, patch);
+  notifyBtcLocksChanged();
+  return { resolved: true, lock: { ...lock, ...patch } };
 }
 
 // Re-export for convenience in callers that want to display the network badge.

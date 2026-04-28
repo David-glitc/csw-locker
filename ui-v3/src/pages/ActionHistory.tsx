@@ -6,16 +6,19 @@ import { History, Loader2, ExternalLink, X, Clock, FileCode, RefreshCw, Send, Wa
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSelectedWallet } from "@/hooks/useSelectedWallet";
 import SecondaryButton from "@/components/ui/secondary-button";
-import { TxInfo, TransactionDataService } from "@/services/transactionDataService";
-import { fetchStxUsdPrice } from "@/lib/stxPrice";
+import { TransactionDataService } from "@/services/transactionDataService";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatAmount } from "@/lib/txFormatUtils";
 import { useParams } from "react-router-dom";
 import { getClientConfig } from "@/utils/chain-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBtcWallet } from "@/contexts/BtcWalletContext";
-import { getAddressTxs, getMempoolTxUrl, type MempoolBtcTx } from "@/services/btcMempoolService";
+import { getAddressTxs, getMempoolTxUrl, getTxFull, type MempoolBtcTx } from "@/services/btcMempoolService";
 import PrimaryButton from "@/components/ui/primary-button";
+import { getBtcVault } from "@/lib/btcVaultStorage";
+import { TxInfo } from "@/services/interfaces";
+import BtcVaultView from "@/pages/BtcVaultView";
+import { useAssetPrices } from "@/contexts/AssetPricesContext";
 
 
 const transactionService = new TransactionDataService();
@@ -31,13 +34,16 @@ const ActionHistory = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [filterAction, setFilterAction] = useState<string>("all");
   const [showFilter, setShowFilter] = useState(false);
-  const [stxUsd, setStxUsd] = useState<number | null>(null);
+  const { stxUsd } = useAssetPrices();
   const [chainTab, setChainTab] = useState<"stacks" | "bitcoin">("stacks");
   const { activeBtcAddress, connectBtcWallet, connecting: btcConnecting } = useBtcWallet();
   const [btcTxs, setBtcTxs] = useState<MempoolBtcTx[]>([]);
+  const [btcFullByTxid, setBtcFullByTxid] = useState<Record<string, Awaited<ReturnType<typeof getAddressTxs>>[number] & { vin?: Array<{ prevout?: { scriptpubkey_address?: string; value?: number } }>; fee?: number }>>({});
+  const [expandedBtcTxid, setExpandedBtcTxid] = useState<string | null>(null);
   const [btcLoading, setBtcLoading] = useState(false);
 
   const { walletId } = useParams<{ walletId: `${string}.${string}` }>();
+  const vaultFromRoute = walletId ? getBtcVault(walletId) : null;
   const fetchTransactions = useCallback((currentOffset: number = 0) => {
     if (!walletId && !selectedWallet?.address) return;
     setIsLoading(true);
@@ -67,10 +73,6 @@ const ActionHistory = () => {
   }, [fetchTransactions]);
 
   useEffect(() => {
-    fetchStxUsdPrice().then(setStxUsd);
-  }, []);
-
-  useEffect(() => {
     if (chainTab !== "bitcoin" || !activeBtcAddress) {
       setBtcTxs([]);
       return;
@@ -80,6 +82,36 @@ const ActionHistory = () => {
       .then(setBtcTxs)
       .finally(() => setBtcLoading(false));
   }, [chainTab, activeBtcAddress]);
+
+  useEffect(() => {
+    if (chainTab !== "bitcoin" || !activeBtcAddress || btcTxs.length === 0) {
+      setBtcFullByTxid({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const network = getClientConfig(activeBtcAddress).network;
+      const rows = await Promise.all(btcTxs.slice(0, 20).map(async (tx) => [tx.txid, await getTxFull(tx.txid, network)] as const));
+      if (cancelled) return;
+      const map: Record<string, Awaited<ReturnType<typeof getAddressTxs>>[number] & { vin?: Array<{ prevout?: { scriptpubkey_address?: string; value?: number } }>; fee?: number }> = {};
+      for (const [txid, full] of rows) {
+        if (full) {
+          map[txid] = {
+            txid: full.txid,
+            value: 0,
+            status: full.status,
+            vout: full.vout,
+            vin: full.vin,
+            fee: full.fee,
+          };
+        }
+      }
+      setBtcFullByTxid(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chainTab, activeBtcAddress, btcTxs]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -95,7 +127,7 @@ const ActionHistory = () => {
     transactions.filter(tx =>
       (filterAction === "all" || tx.action === filterAction) &&
       (tx.assets[0]?.symbol?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.sender?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.actor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tx.tx?.toLowerCase().includes(searchTerm.toLowerCase()))
     ), [transactions, searchTerm, filterAction]
   );
@@ -159,6 +191,7 @@ const ActionHistory = () => {
   };
 
   console.log("Transaction:", transactions);
+  if (vaultFromRoute) return <BtcVaultView />;
   return (
     <WalletLayout>
       <div className="space-y-6">
@@ -195,7 +228,7 @@ const ActionHistory = () => {
                   <div className="flex items-center gap-2 mr-2">
                     {filterAction !== 'all' && (
                       <span className="flex items-center bg-slate-700 text-white rounded px-2 py-1 text-xs">
-                        {getTxLabel({action: filterAction, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: ''} as TxInfo)}
+                        {getTxLabel({action: filterAction, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'pending'} as TxInfo)}
                         <button onClick={() => setFilterAction('all')} className="ml-1 text-slate-400 hover:text-white focus:outline-none">
                           <X className="w-3 h-3" />
                         </button>
@@ -242,7 +275,7 @@ const ActionHistory = () => {
                         <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="w-full bg-slate-700 text-white rounded p-1 focus:ring-2 focus:ring-purple-400">
                           <option value="all">All</option>
                           {txActions.map(action => (
-                            <option key={action} value={action}>{getTxLabel({action, assets: [], sender: '', stamp: '', time: '', tx: '', tx_status: ''} as TxInfo)}</option>
+                            <option key={action} value={action}>{getTxLabel({action, assets: [], actor: '', stamp: '', time: '', tx: '', tx_status: 'pending'} as TxInfo)}</option>
                           ))}
                         </select>
                       </div>
@@ -306,8 +339,8 @@ const ActionHistory = () => {
                             </div>
                             <div className="text-slate-400 text-sm whitespace-pre-line">
                               {tx.action === 'sent'
-                                ? `To: ${tx.sender}`
-                                : `From: ${tx.sender}`}
+                                ? `To: ${tx.actor}`
+                                : `From: ${tx.actor}`}
                               {' • '}{tx.stamp}
                             </div>
                             <div className="text-slate-500 text-xs flex items-center gap-2">
@@ -418,21 +451,64 @@ const ActionHistory = () => {
                 ) : btcTxs.length === 0 ? (
                   <p className="text-slate-500 text-sm">No transactions found for this address yet.</p>
                 ) : (
-                  <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto custom-scrollbar">
                     {btcTxs.map((t) => (
                       <div
                         key={t.txid}
-                        className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg text-sm"
+                        className="p-3 bg-slate-700/30 rounded-lg text-sm"
                       >
-                        <span className="font-mono text-slate-300 break-all pr-2">{t.txid}</span>
-                        <a
-                          href={getMempoolTxUrl(t.txid, activeBtcAddress)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 text-purple-400 flex items-center gap-1"
+                        <button
+                          type="button"
+                          className="w-full text-left flex items-center justify-between gap-2"
+                          onClick={() => setExpandedBtcTxid((prev) => (prev === t.txid ? null : t.txid))}
                         >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
+                          <span className="font-mono text-slate-300 break-all pr-2">{t.txid}</span>
+                          <ExternalLink className="h-4 w-4 text-purple-400 shrink-0" />
+                        </button>
+                        {expandedBtcTxid === t.txid && (
+                          <div className="mt-2 pt-2 border-t border-slate-600/60 space-y-1 text-xs">
+                            {(() => {
+                              const full = btcFullByTxid[t.txid];
+                              if (!full || !activeBtcAddress) return <div className="text-slate-500">Loading details…</div>;
+                              const inFromMe = (full.vin ?? [])
+                                .filter((vin) => vin.prevout?.scriptpubkey_address === activeBtcAddress)
+                                .reduce((acc, vin) => acc + (vin.prevout?.value ?? 0), 0);
+                              const outToMe = (full.vout ?? [])
+                                .filter((vout) => vout.scriptpubkey_address === activeBtcAddress)
+                                .reduce((acc, vout) => acc + (vout.value ?? 0), 0);
+                              const net = outToMe - inFromMe;
+                              return (
+                                <>
+                                  <div className={`font-medium ${net >= 0 ? "text-emerald-300" : "text-amber-300"}`}>
+                                    Net flow: {net >= 0 ? "+" : "−"}{Math.abs(net).toLocaleString()} sats
+                                  </div>
+                                  <div className="text-slate-400">Inputs</div>
+                                  {(full.vin ?? []).slice(0, 6).map((vin, idx) => (
+                                    <div key={`${t.txid}-vin-${idx}`} className="text-slate-300 break-all">
+                                      - {vin.prevout?.scriptpubkey_address ?? "Unknown"} ({vin.prevout?.value ?? 0} sats)
+                                    </div>
+                                  ))}
+                                  <div className="text-slate-400 mt-1">Outputs</div>
+                                  {(full.vout ?? []).slice(0, 6).map((vout, idx) => (
+                                    <div key={`${t.txid}-vout-${idx}`} className="text-slate-300 break-all">
+                                      - {vout.scriptpubkey_address ?? "Unknown"} ({vout.value ?? 0} sats)
+                                    </div>
+                                  ))}
+                                  <div className="text-slate-400">Fee: {full.fee ?? 0} sats</div>
+                                  <a
+                                    href={getMempoolTxUrl(t.txid, activeBtcAddress)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-purple-300"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    Open on mempool
+                                  </a>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

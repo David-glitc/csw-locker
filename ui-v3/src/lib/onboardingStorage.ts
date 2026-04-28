@@ -1,3 +1,5 @@
+import { buildScopedStorageKey } from "@/lib/userScope";
+
 const STORAGE_KEY = "csw_onboarding_v1";
 
 export type AccountKind = "personal" | "group";
@@ -26,7 +28,7 @@ function parseRecord(raw: string | null): OnboardingRecord | null {
 
 export function getOnboardingRecord(): OnboardingRecord | null {
   if (typeof localStorage === "undefined") return null;
-  return parseRecord(localStorage.getItem(STORAGE_KEY));
+  return parseRecord(localStorage.getItem(buildScopedStorageKey(STORAGE_KEY)));
 }
 
 export function isOnboardingComplete(): boolean {
@@ -38,9 +40,9 @@ export function saveOnboarding(record: Omit<OnboardingRecord, "completedAt"> & {
     ...record,
     completedAt: record.completedAt ?? new Date().toISOString(),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(full));
+  localStorage.setItem(buildScopedStorageKey(STORAGE_KEY), JSON.stringify(full));
 }
 
 export function clearOnboardingForDev(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(buildScopedStorageKey(STORAGE_KEY));
 }

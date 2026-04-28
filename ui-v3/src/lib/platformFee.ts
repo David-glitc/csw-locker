@@ -9,15 +9,15 @@
  *   - Honest UX: every call surfaces `{ feeSats, treasury, enabled, bps }` so the caller can
  *     render a clear "Platform fee" line to the user.
  *
- * Configuration precedence (highest wins):
- *   1. Vite env (`VITE_CSW_TREASURY_*`, `VITE_CSW_FEE_BPS`) — ship-time overrides.
- *   2. Hard-coded defaults below.
+ * Configuration precedence:
+ *   - Treasury addresses and min/cap can come from env.
+ *   - BTC fee rate is product-pinned to 1% (100 bps).
  *
  * Example env wiring (`ui-v3/.env.local`):
  *   VITE_CSW_TREASURY_BTC_MAINNET=bc1q...
  *   VITE_CSW_TREASURY_BTC_TESTNET=tb1q...
  *   VITE_CSW_TREASURY_STX=SP3...
- *   VITE_CSW_FEE_BPS=10          # 10 bps = 0.10%
+ *   VITE_CSW_FEE_BPS=100         # 100 bps = 1.00%
  *   VITE_CSW_FEE_MIN_SATS=546    # floor so sub-dust payouts aren't wasted
  *   VITE_CSW_FEE_CAP_SATS=50000  # cap so large spends aren't taxed unfairly
  */
@@ -25,9 +25,9 @@
 type NetworkLabel = "mainnet" | "testnet";
 
 /** Fee anchors in basis points (1 bp = 0.01%). */
-const DEFAULT_FEE_BPS = 10; // 0.10%
-/** Minimum fee if `amount * bps/10_000 < MIN`. Prevents dust fees. Also the P2WPKH dust floor. */
-const DEFAULT_FEE_MIN_SATS = 546;
+const DEFAULT_FEE_BPS = 100; // 1.00%
+/** Minimum fee floor. Default 0 so 10bps remains proportional on small locks. */
+const DEFAULT_FEE_MIN_SATS = 0;
 /** Cap so we don't tax very large spends disproportionately. */
 const DEFAULT_FEE_CAP_SATS = 50_000;
 
@@ -58,7 +58,8 @@ export type PlatformFeeConfig = {
 };
 
 export const PLATFORM_FEE_CONFIG: PlatformFeeConfig = {
-  bps: readIntEnv("VITE_CSW_FEE_BPS", DEFAULT_FEE_BPS),
+  // Product override: force BTC platform fee to 1% regardless of env.
+  bps: DEFAULT_FEE_BPS,
   minSats: readIntEnv("VITE_CSW_FEE_MIN_SATS", DEFAULT_FEE_MIN_SATS),
   capSats: readIntEnv("VITE_CSW_FEE_CAP_SATS", DEFAULT_FEE_CAP_SATS),
   treasuryBtc: {
@@ -77,14 +78,27 @@ export type PlatformFeeQuote = {
   reason?: "disabled" | "no-treasury" | "below-floor" | "ok";
 };
 
+export type PlatformFeeOptions = {
+  /**
+   * When false, ignore configured min floor and charge proportional bps only.
+   * Useful for lock flows where users expect strict % fees.
+   */
+  enforceMinFloor?: boolean;
+};
+
 /**
  * Compute the platform fee for a BTC action (lock, vault send, unlock).
  *
  * The fee is applied to **`amountSats`** (the user-intent amount) and clamped to `[min, cap]`.
  * It does NOT consume from the user's balance beyond `amountSats + mined fee + platformFee`.
  */
-export function computeBtcPlatformFee(amountSats: number, network: NetworkLabel): PlatformFeeQuote {
+export function computeBtcPlatformFee(
+  amountSats: number,
+  network: NetworkLabel,
+  options: PlatformFeeOptions = {}
+): PlatformFeeQuote {
   const { bps, minSats, capSats, treasuryBtc } = PLATFORM_FEE_CONFIG;
+  const enforceMinFloor = options.enforceMinFloor ?? true;
   const treasury = treasuryBtc[network];
 
   if (bps <= 0) {
@@ -96,11 +110,14 @@ export function computeBtcPlatformFee(amountSats: number, network: NetworkLabel)
   }
 
   const raw = Math.floor((amountSats * bps) / 10_000);
-  const clamped = Math.min(Math.max(raw, minSats), capSats);
+  const minFloor = enforceMinFloor ? minSats : 0;
+  const clamped = Math.min(Math.max(raw, minFloor), capSats);
 
   // Don't charge a fee larger than the amount being moved — absurd edge case.
   const feeSats = Math.min(clamped, Math.max(0, amountSats - 1));
-  if (feeSats < minSats) {
+  // If floor is configured and raw fee is smaller, keep the floor. If floor is 0,
+  // this preserves exact proportional bps charging.
+  if (enforceMinFloor && minSats > 0 && feeSats < minSats) {
     return { enabled: false, feeSats: 0, treasury, bps, reason: "below-floor" };
   }
 

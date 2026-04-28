@@ -1,27 +1,23 @@
-import { getRates } from "@/services/getRates";
 import { fetchStxUsdPrice } from "@/lib/stxPrice";
 import { getBtcUsdPrice } from "@/services/btcMempoolService";
 
-/** Prefer Charisma index price when valid, else CoinGecko STX/USD. */
+/** Prefer primary STX spot source, then fallback. */
 export function selectStxUsd(
-  charismaUsd: number | null | undefined,
-  coingeckoUsd: number | null | undefined
+  primaryUsd: number | null | undefined,
+  fallbackUsd: number | null | undefined
 ): number | null {
-  if (charismaUsd != null && +charismaUsd > 0) return +charismaUsd;
-  if (coingeckoUsd != null && +coingeckoUsd > 0) return +coingeckoUsd;
+  if (primaryUsd != null && +primaryUsd > 0) return +primaryUsd;
+  if (fallbackUsd != null && +fallbackUsd > 0) return +fallbackUsd;
   return null;
 }
 
 export async function fetchStxSpotUsd(): Promise<{
   usd: number | null;
-  fromCharisma: boolean;
+  fromPrimary: boolean;
 }> {
-  const fromApi = await getRates(".stx");
-  const c = fromApi?.usdPrice;
-  if (c != null && +c > 0) return { usd: +c, fromCharisma: true };
-  const cg = await fetchStxUsdPrice();
-  if (cg != null && cg > 0) return { usd: cg, fromCharisma: false };
-  return { usd: null, fromCharisma: false };
+  const primary = await fetchStxUsdPrice();
+  if (primary != null && primary > 0) return { usd: primary, fromPrimary: true };
+  return { usd: null, fromPrimary: false };
 }
 
 export async function fetchAllAssetSpotUsd(): Promise<{

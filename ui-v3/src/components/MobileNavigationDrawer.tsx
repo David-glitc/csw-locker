@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { Wallet, Send, History, ArrowDown, ArrowUp, X, Lock } from "lucide-react";
+import { Wallet, Send, History, ArrowDown, ArrowUp, X, Lock, ShieldCheck, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useBtcWallet } from "@/contexts/BtcWalletContext";
@@ -11,6 +11,7 @@ import PrimaryButton from "./ui/primary-button";
 type NavEntry = { path: string; label: string; icon: typeof Wallet };
 
 interface MobileNavigationDrawerProps {
+  mode?: "smart-wallet" | "btc-vault";
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   currentWallet: {
@@ -23,8 +24,16 @@ interface MobileNavigationDrawerProps {
   walletId?: string;
 }
 
-const MobileNavigationDrawer = ({ isOpen, onOpenChange, currentWallet, walletId }: MobileNavigationDrawerProps) => {
+const MobileNavigationDrawer = ({
+  mode = "smart-wallet",
+  isOpen,
+  onOpenChange,
+  currentWallet,
+  walletId,
+}: MobileNavigationDrawerProps) => {
   const location = useLocation();
+  const withWallet = (segment: string) => (walletId ? `/${segment}/${walletId}` : "/wallet-selector");
+  const currentPathWithHash = `${location.pathname}${location.hash}`;
   const { walletData } = useWalletConnection();
   const stx = walletData?.preferredStx?.address ?? walletData?.addresses.stx[0]?.address;
   const {
@@ -39,24 +48,38 @@ const MobileNavigationDrawer = ({ isOpen, onOpenChange, currentWallet, walletId 
   const isStackingActive = currentWallet.extensions?.some(
     (ext) => ext.toLowerCase().includes("stacking") || ext.toLowerCase().includes("stack")
   );
+  const isVaultMode = mode === "btc-vault";
 
   const afterCore: NavEntry[] = [
-    { path: `/locks/${walletId}`, label: "Locks", icon: Lock },
-    { path: `/actions/${walletId}`, label: "Extensions", icon: Wallet },
-    { path: `/contract-actions/${walletId}`, label: "Contract Actions", icon: Wallet },
-    { path: `/history/${walletId}`, label: "History", icon: History },
-    { path: `/contract-details/${walletId}`, label: "Contract Details", icon: Wallet },
+    { path: withWallet("locks"), label: "Locks", icon: Lock },
+    { path: withWallet("actions"), label: "Extensions", icon: Wallet },
+    { path: withWallet("contract-actions"), label: "Contract Actions", icon: Wallet },
+    { path: withWallet("history"), label: "History", icon: History },
+    { path: withWallet("contract-details"), label: "Contract Details", icon: Wallet },
   ];
 
   const core: NavEntry[] = [
-    { path: `/dashboard/${walletId}`, label: "Dashboard", icon: Wallet },
-    { path: `/send/${walletId}`, label: "Send", icon: Send },
-    { path: `/receive/${walletId}`, label: "Receive", icon: ArrowDown },
+    { path: withWallet("dashboard"), label: "Dashboard", icon: Wallet },
+    { path: withWallet("send"), label: "Send", icon: Send },
+    { path: withWallet("receive"), label: "Receive", icon: ArrowDown },
   ];
 
-  const navItems: NavEntry[] = isStackingActive
-    ? [...core, { path: `/stacking/${walletId}`, label: "Stacking", icon: ArrowUp }, ...afterCore]
-    : [...core, ...afterCore];
+  const vaultBasePath = walletId ? `/dashboard/${walletId}` : "/wallet-selector";
+  const vaultNavItems: NavEntry[] = [
+    { path: vaultBasePath, label: "Dashboard", icon: Wallet },
+    { path: walletId ? `/btc-vault/${walletId}/send` : "/wallet-selector", label: "Send", icon: Send },
+    { path: withWallet("receive"), label: "Receive", icon: ArrowDown },
+    { path: withWallet("history"), label: "History", icon: History },
+    { path: walletId ? `/locks/${walletId}` : "/locks", label: "Vault Locks", icon: Lock },
+    { path: walletId ? `/btc-vault/${walletId}/policies` : "/wallet-selector", label: "Policies", icon: ShieldCheck },
+    { path: walletId ? `/btc-vault/${walletId}/settings` : "/wallet-selector", label: "Settings", icon: Settings },
+  ];
+
+  const navItems: NavEntry[] = isVaultMode
+    ? vaultNavItems
+    : isStackingActive
+      ? [...core, { path: withWallet("stacking"), label: "Stacking", icon: ArrowUp }, ...afterCore]
+      : [...core, ...afterCore];
 
   const btcLine =
     balanceSats != null && activeBtcAddress
@@ -85,11 +108,12 @@ const MobileNavigationDrawer = ({ isOpen, onOpenChange, currentWallet, walletId 
         </DrawerHeader>
         <div className="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
           <div className="bg-slate-700/50 rounded-lg p-3">
-            <div className="text-sm text-slate-400">Current Wallet</div>
+            <div className="text-sm text-slate-400">{isVaultMode ? "Current BTC vault" : "Current Wallet"}</div>
             <div className="text-white font-medium">{currentWallet.name}</div>
-            <div className="text-xs text-slate-400 mt-1 font-mono break-all">{currentWallet.contractId}</div>
+            <div className="text-xs text-slate-400 mt-1 font-mono break-all">{currentWallet.contractId || "—"}</div>
           </div>
 
+          {!isVaultMode && (
           <div className="bg-slate-700/50 rounded-lg p-3 space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -125,13 +149,15 @@ const MobileNavigationDrawer = ({ isOpen, onOpenChange, currentWallet, walletId 
               </div>
             </div>
           </div>
+          )}
 
           <div className="space-y-2">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const isDashboardRoot = isVaultMode && item.label === "Dashboard" && item.path === location.pathname;
+              const isActive = isDashboardRoot || currentPathWithHash === item.path;
               return (
-                <DrawerClose key={item.path} asChild>
+                <DrawerClose key={`${item.path}-${item.label}`} asChild>
                   <Button
                     asChild
                     variant={isActive ? "secondary" : "ghost"}
